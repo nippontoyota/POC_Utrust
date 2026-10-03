@@ -9,6 +9,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AutoRefresh } from "@/components/broker/Refresh";
 import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
+import { isValidDateInput } from "@/lib/validation";
 
 export default async function Page({
   searchParams,
@@ -21,11 +22,26 @@ export default async function Page({
   }>;
 }) {
   const params = await searchParams;
+  const localToday = new Date();
+  localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
+  const today = localToday.toISOString().slice(0, 10);
+  const rawFrom = isValidDateInput(params.from) ? params.from! : "";
+  const rawTo = isValidDateInput(params.to) ? params.to! : "";
+  const dateError =
+    (params.from && !rawFrom) || (params.to && !rawTo)
+      ? "Use valid date filters."
+      : rawFrom > today || rawTo > today
+        ? "Date filters cannot be in the future."
+        : rawFrom && rawTo && rawFrom > rawTo
+          ? "From date must be on or before To date."
+          : null;
+  const from = dateError ? "" : rawFrom;
+  const to = dateError ? "" : rawTo;
   const supabase = await createClient();
   const [{ data, error }, { data: branches }, unfiltered] = await Promise.all([
     supabase.rpc("broker_report", {
-      p_from: params.from || undefined,
-      p_to: params.to || undefined,
+      p_from: from || undefined,
+      p_to: to || undefined,
       p_branch: params.branch || undefined,
       p_broker: params.broker || undefined,
     }),
@@ -48,7 +64,8 @@ export default async function Page({
           <input
             type="date"
             name="from"
-            defaultValue={params.from}
+            defaultValue={from}
+            max={to || today}
             className={inputClass}
           />
         </label>
@@ -57,7 +74,9 @@ export default async function Page({
           <input
             type="date"
             name="to"
-            defaultValue={params.to}
+            defaultValue={to}
+            min={from || undefined}
+            max={today}
             className={inputClass}
           />
         </label>
@@ -96,6 +115,11 @@ export default async function Page({
           Apply
         </Button>
       </form>
+      {dateError && (
+        <p className="text-sm font-semibold text-red-600 dark:text-red-400">
+          {dateError}
+        </p>
+      )}
       {error && <BrokerLoadError error={error} />}
       {report && (
         <>

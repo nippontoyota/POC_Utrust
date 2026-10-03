@@ -10,6 +10,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { MOBILE_PATTERN, isValidMobile, normalizeMobile } from "@/lib/validation";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
@@ -29,6 +30,7 @@ const REQUIRED_ANGLES: { key: string; label: string }[] = [
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_PHOTOS = 10;
+const CURRENT_YEAR = new Date().getFullYear();
 
 export function CaseWorkspace({
   initialCase,
@@ -74,10 +76,58 @@ export function CaseWorkspace({
     setFields((f) => ({ ...f, [key]: value }));
   }
 
+  function validateFields(requireComplete: boolean) {
+    const required: [keyof typeof fields, string][] = [
+      ["customer_name", "Customer name is required."],
+      ["customer_mobile", "Customer mobile number is required."],
+      ["vehicle_reg_number", "Vehicle registration number is required."],
+      ["make", "Make is required."],
+      ["model", "Model is required."],
+      ["variant", "Variant is required."],
+      ["registration_year", "Registration year is required."],
+      ["fuel_type", "Fuel type is required."],
+      ["transmission", "Transmission is required."],
+      ["odometer_km", "Odometer reading is required."],
+      ["has_loan", "Loan / hypothecation status is required."],
+      ["customer_expected_price", "Customer expected price is required."],
+    ];
+
+    if (requireComplete) {
+      const missing = required.find(([key]) => !fields[key].toString().trim());
+      if (missing) return missing[1];
+    }
+
+    if (fields.customer_mobile && !isValidMobile(fields.customer_mobile)) {
+      return "Enter a valid 10 digit customer mobile number.";
+    }
+
+    const year = Number(fields.registration_year);
+    if (fields.registration_year && (!Number.isInteger(year) || year < 1980 || year > CURRENT_YEAR)) {
+      return `Registration year must be between 1980 and ${CURRENT_YEAR}.`;
+    }
+
+    const odometer = Number(fields.odometer_km);
+    if (fields.odometer_km && (!Number.isInteger(odometer) || odometer < 0 || odometer > 999999)) {
+      return "Odometer reading must be between 0 and 999999 km.";
+    }
+
+    const owners = Number(fields.ownership_count);
+    if (fields.ownership_count && (!Number.isInteger(owners) || owners < 1 || owners > 10)) {
+      return "Ownership count must be between 1 and 10.";
+    }
+
+    const expectedPrice = Number(fields.customer_expected_price);
+    if (fields.customer_expected_price && (!Number.isFinite(expectedPrice) || expectedPrice < 1 || expectedPrice > 999999999)) {
+      return "Customer expected price must be between INR 1 and INR 99,99,99,999.";
+    }
+
+    return null;
+  }
+
   function buildUpdatePayload() {
     return {
       customer_name: fields.customer_name || null,
-      customer_mobile: fields.customer_mobile || null,
+      customer_mobile: fields.customer_mobile ? normalizeMobile(fields.customer_mobile) : null,
       vehicle_reg_number: fields.vehicle_reg_number ? fields.vehicle_reg_number.trim().toUpperCase().replace(/\s+/g, "") : null,
       make: fields.make || null,
       model: fields.model || null,
@@ -93,10 +143,17 @@ export function CaseWorkspace({
     };
   }
 
-  async function saveDraft(): Promise<boolean> {
+  async function saveDraft({ requireComplete = false } = {}): Promise<boolean> {
     setSaving(true);
     setError(null);
     setSavedMessage(false);
+
+    const validationError = validateFields(requireComplete);
+    if (validationError) {
+      setSaving(false);
+      setError(validationError);
+      return false;
+    }
 
     const payload = buildUpdatePayload();
 
@@ -192,7 +249,7 @@ export function CaseWorkspace({
   }
 
   async function handleSubmit() {
-    const saved = await saveDraft();
+    const saved = await saveDraft({ requireComplete: true });
     if (!saved) return;
 
     setSubmitting(true);
@@ -319,8 +376,11 @@ export function CaseWorkspace({
             <input
               type="tel"
               disabled={!isDraft}
+              inputMode="numeric"
+              pattern={MOBILE_PATTERN}
+              title="Enter a 10 digit mobile number."
               value={fields.customer_mobile}
-              onChange={(e) => update("customer_mobile", e.target.value)}
+              onChange={(e) => update("customer_mobile", normalizeMobile(e.target.value))}
               className={inputClass}
             />
           </FormField>
@@ -364,6 +424,9 @@ export function CaseWorkspace({
             <input
               type="number"
               disabled={!isDraft}
+              min={1980}
+              max={CURRENT_YEAR}
+              step={1}
               value={fields.registration_year}
               onChange={(e) => update("registration_year", e.target.value)}
               className={inputClass}
@@ -400,6 +463,9 @@ export function CaseWorkspace({
             <input
               type="number"
               disabled={!isDraft}
+              min={0}
+              max={999999}
+              step={1}
               value={fields.odometer_km}
               onChange={(e) => update("odometer_km", e.target.value)}
               className={inputClass}
@@ -409,6 +475,9 @@ export function CaseWorkspace({
             <input
               type="number"
               disabled={!isDraft}
+              min={1}
+              max={10}
+              step={1}
               value={fields.ownership_count}
               onChange={(e) => update("ownership_count", e.target.value)}
               className={inputClass}
@@ -442,6 +511,9 @@ export function CaseWorkspace({
             <input
               type="number"
               disabled={!isDraft}
+              min={1}
+              max={999999999}
+              step={1}
               value={fields.customer_expected_price}
               onChange={(e) => update("customer_expected_price", e.target.value)}
               className={inputClass}
@@ -667,7 +739,7 @@ export function CaseWorkspace({
 
       {isDraft && (
         <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={saveDraft} disabled={saving}>
+          <Button variant="secondary" onClick={() => void saveDraft()} disabled={saving}>
             {saving ? "Saving..." : "Save Draft"}
           </Button>
           <Button

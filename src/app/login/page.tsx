@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandMark } from "@/components/BrandMark";
+import { EMAIL_PATTERN, isValidEmail, normalizeEmail } from "@/lib/validation";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,14 +24,22 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const username =
+      mode === "broker" ? normalizeEmail(employeeId) : employeeId.trim();
+
+    if (mode === "broker" && !isValidEmail(username)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email:
         mode === "broker"
-          ? employeeId.trim().toLowerCase()
-          : employeeIdToAuthEmail(employeeId),
+          ? username
+          : employeeIdToAuthEmail(username),
       password,
     });
 
@@ -112,6 +121,8 @@ export default function LoginPage() {
               type={mode === "broker" ? "email" : "text"}
               name="username"
               autoComplete="username"
+              pattern={mode === "broker" ? EMAIL_PATTERN : undefined}
+              title={mode === "broker" ? "Enter a valid email address." : undefined}
               required
               autoFocus
               value={employeeId}

@@ -35,9 +35,9 @@ export function OfferForm({ vehicle }: { vehicle: MarketplaceVehicle }) {
             <input
               required
               type="number"
-              min="0.01"
-              max="9999999999.99"
-              step="0.01"
+              min={1}
+              max={999999999}
+              step={1}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className={inputClass}

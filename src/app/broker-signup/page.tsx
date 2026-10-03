@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandMark } from "@/components/BrandMark";
+import {
+  EMAIL_PATTERN,
+  MOBILE_PATTERN,
+  isValidEmail,
+  isValidMobile,
+  normalizeEmail,
+  normalizeMobile,
+} from "@/lib/validation";
 
 export default function BrokerSignupPage() {
   const [companyName, setCompanyName] = useState("");
@@ -23,7 +31,17 @@ export default function BrokerSignupPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizeMobile(phone);
 
+    if (!isValidMobile(normalizedPhone)) {
+      setError("Enter a valid 10 digit mobile number.");
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Enter a valid email address.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -37,7 +55,7 @@ export default function BrokerSignupPage() {
     const supabase = createClient();
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
     });
 
@@ -63,8 +81,8 @@ export default function BrokerSignupPage() {
       id: signUpData.user!.id,
       company_name: companyName.trim(),
       contact_name: contactName.trim(),
-      phone: phone.trim(),
-      email,
+      phone: normalizedPhone,
+      email: normalizedEmail,
     });
 
     setLoading(false);
@@ -153,10 +171,13 @@ export default function BrokerSignupPage() {
             <input
               type="tel"
               name="phone"
-              autoComplete="off"
+              autoComplete="tel-national"
+              inputMode="numeric"
+              pattern={MOBILE_PATTERN}
+              title="Enter a 10 digit mobile number."
               required
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(normalizeMobile(e.target.value))}
               className={inputClass}
             />
           </FormField>
@@ -165,7 +186,9 @@ export default function BrokerSignupPage() {
             <input
               type="email"
               name="email"
-              autoComplete="off"
+              autoComplete="email"
+              pattern={EMAIL_PATTERN}
+              title="Enter a valid email address."
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

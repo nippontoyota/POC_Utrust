@@ -49,8 +49,8 @@ export function PoCaseWorkspace({
       setError("You must confirm the physical inspection is complete.");
       return;
     }
-    if (!price || price <= 0) {
-      setError("Enter a valid offer price.");
+    if (!Number.isFinite(price) || price < 1 || price > 999999999) {
+      setError("Enter an offer price between INR 1 and INR 99,99,99,999.");
       return;
     }
 
@@ -167,6 +167,9 @@ export function PoCaseWorkspace({
             </label>
             <input
               type="number"
+              min={1}
+              max={999999999}
+              step={1}
               value={offerPrice}
               onChange={(e) => setOfferPrice(e.target.value)}
               className={inputClass}
