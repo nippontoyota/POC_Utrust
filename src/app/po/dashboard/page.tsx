@@ -3,6 +3,7 @@ import { ClipboardList, AlertTriangle, LayoutList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isOverdue } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function PoDashboardPage() {
   const supabase = await createClient();
@@ -18,9 +19,13 @@ export default async function PoDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+      <PageHeader
+        eyebrow="Purchase desk"
+        title="Dashboard"
+        description="Start evaluations, keep overdue work visible, and return offer prices to the sales team."
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
         <StatCard
           label="Awaiting your evaluation"
           value={pendingCount}
@@ -41,7 +46,7 @@ export default async function PoDashboardPage() {
 
       <Link
         href="/po/cases"
-        className="inline-block text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+        className="inline-block text-sm font-black text-[var(--brand)] hover:underline"
       >
         View all assigned cases &rarr;
       </Link>

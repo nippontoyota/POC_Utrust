@@ -7,6 +7,8 @@ import { formatINR } from "@/lib/formatCurrency";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { OfferForm } from "@/components/broker/OfferForm";
 import { AutoRefresh, Deadline } from "@/components/broker/Refresh";
+import { Card, CardTitle } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function Page({
   params,
@@ -43,34 +45,34 @@ export default async function Page({
       <AutoRefresh />
       <Link
         href="/broker/dashboard"
-        className="inline-flex items-center gap-1 text-sm text-blue-600"
+        className="inline-flex items-center gap-1 text-sm font-black text-[var(--brand)]"
       >
         <ArrowLeft size={16} />
         Marketplace
       </Link>
-      <div>
-        <p className="text-xs text-zinc-500">
-          {v.case_ref} / {v.branch_name}
-        </p>
-        <h1 className="mt-1 text-xl font-semibold">
-          {v.make} {v.model} {v.variant}
-        </h1>
-      </div>
-      <dl className="grid grid-cols-2 gap-4 border-y border-zinc-200 py-4 text-sm sm:grid-cols-4 dark:border-zinc-800">
+      <PageHeader
+        eyebrow={`${v.case_ref} / ${v.branch_name}`}
+        title={`${v.make} ${v.model} ${v.variant}`}
+        description="Broker-safe listing details and your private offer activity."
+      />
+      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         {[
           ["Year", v.registration_year],
           ["Mileage", `${v.odometer_km.toLocaleString("en-IN")} km`],
           ["Fuel", v.fuel_type],
           ["Transmission", v.transmission],
         ].map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-zinc-500">{label}</dt>
-            <dd className="mt-1 capitalize">{value}</dd>
+          <div key={label} className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_16px_45px_rgb(33_25_20/0.06)]">
+            <dt className="text-xs font-black uppercase tracking-[0.12em] text-[var(--muted)]">{label}</dt>
+            <dd className="mt-2 font-black capitalize text-zinc-950 dark:text-zinc-100">{value}</dd>
           </div>
         ))}
       </dl>
-      <PhotoGallery photos={v.photos} />
-      <p className="text-sm capitalize">
+      <Card>
+        <CardTitle>Vehicle Photos</CardTitle>
+        <PhotoGallery photos={v.photos} />
+      </Card>
+      <p className="rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-sm font-black capitalize text-[var(--muted)]">
         {v.availability}
         {v.expires_at && (
           <>
@@ -95,8 +97,8 @@ export default async function Page({
         vehicle={v}
       />
       {!!v.reservations.length && (
-        <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <h2 className="font-semibold">Your Reservations</h2>
+        <Card className="space-y-3">
+          <CardTitle>Your Reservations</CardTitle>
           {v.reservations.map((r) => (
             <div
               key={r.id}
@@ -111,11 +113,11 @@ export default async function Page({
               </span>
             </div>
           ))}
-        </section>
+        </Card>
       )}
       {!!v.history.length && (
-        <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <h2 className="font-semibold">Your Activity</h2>
+        <Card className="space-y-3">
+          <CardTitle>Your Activity</CardTitle>
           {v.history.map((e) => (
             <div
               key={e.id}
@@ -130,7 +132,7 @@ export default async function Page({
               </time>
             </div>
           ))}
-        </section>
+        </Card>
       )}
     </div>
   );

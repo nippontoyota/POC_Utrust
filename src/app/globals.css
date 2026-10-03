@@ -3,8 +3,15 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --background: #f3f0ec;
+  --foreground: #171717;
+  --panel: #fffefd;
+  --panel-soft: #f8f6f3;
+  --line: #e5dfd8;
+  --muted: #6f6861;
+  --brand: #e23d2f;
+  --brand-strong: #b91f17;
+  --ink: #111111;
 }
 
 @theme inline {
@@ -15,21 +22,69 @@
 }
 
 [data-theme="dark"] {
-  --background: #09090b;
-  --foreground: #fafafa;
+  color-scheme: dark;
+  --background: #121212;
+  --foreground: #f4f4f5;
+  --panel: #1c1c1f;
+  --panel-soft: #262629;
+  --line: #38383d;
+  --muted: #b1b1ba;
+  --brand: #ff604f;
+  --brand-strong: #ff7a6d;
+  --ink: #050505;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: #bfdbfe;
-  color: #1e3a8a;
+  background: #ffd2cc;
+  color: #7f1d1d;
 }
 
 [data-theme="dark"] ::selection {
-  background: #1e3a8a;
-  color: #bfdbfe;
+  background: #7f1d1d;
+  color: #ffe4e0;
+}
+
+@layer utilities {
+  .nt-shell {
+    background: var(--background);
+  }
+
+  .nt-route-lines {
+    background-image:
+      linear-gradient(90deg, rgb(0 0 0 / 0.045) 1px, transparent 1px),
+      linear-gradient(0deg, rgb(0 0 0 / 0.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black, transparent 72%);
+  }
+
+  [data-theme="dark"] .nt-route-lines {
+    display: none;
+  }
+}
+
+@layer base {
+  body:has(dialog[data-mobile-navigation][open]) {
+    overflow: hidden;
+  }
+
+  .lucide {
+    flex-shrink: 0;
+  }
+}
+
+@keyframes navigation-enter {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog[data-mobile-navigation][open] {
+    animation: navigation-enter 180ms ease-out;
+  }
 }

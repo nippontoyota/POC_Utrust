@@ -1,35 +1,35 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 
-function resolveIsDark(): boolean {
+const THEME_EVENT = "utrust-theme-change";
+
+function resolveIsDark() {
   try {
     const stored = localStorage.getItem("theme");
     if (stored) return stored === "dark";
   } catch {}
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return false;
+}
+
+function subscribe(callback: () => void) {
+  window.addEventListener(THEME_EVENT, callback);
+  return () => {
+    window.removeEventListener(THEME_EVENT, callback);
+  };
 }
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-
-  // Runs before paint, after hydration: syncs this component's state with the
-  // value the head script already applied, and re-applies it in case React's
-  // dev Strict Mode remount reset the <html> attribute to its JSX default.
-  useLayoutEffect(() => {
-    const dark = resolveIsDark();
-    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-    setIsDark(dark);
-  }, []);
+  const isDark = useSyncExternalStore(subscribe, resolveIsDark, () => false);
 
   function toggle() {
     const next = !isDark;
-    setIsDark(next);
     document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
     try {
       localStorage.setItem("theme", next ? "dark" : "light");
     } catch {}
+    window.dispatchEvent(new Event(THEME_EVENT));
   }
 
   return (
@@ -37,7 +37,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--panel)] text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--panel-soft)] dark:text-zinc-200"
     >
       {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </button>

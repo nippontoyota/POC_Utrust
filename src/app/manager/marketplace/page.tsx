@@ -4,7 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { BrokerReport } from "@/lib/broker";
 import { formatINR } from "@/lib/formatCurrency";
 import { inputClass } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
+import { Card, CardTitle } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { AutoRefresh } from "@/components/broker/Refresh";
+import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 
 export default async function Page({
   searchParams,
@@ -33,8 +37,12 @@ export default async function Page({
   return (
     <div className="space-y-6">
       <AutoRefresh />
-      <h1 className="text-xl font-semibold">Broker Performance</h1>
-      <form className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <PageHeader
+        eyebrow="Marketplace analytics"
+        title="Broker Performance"
+        description="Measure listings, reservations, closed broker deals, expiries, and release reasons."
+      />
+      <form className="grid items-end gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)] @min-[32rem]:grid-cols-2 @min-[64rem]:grid-cols-5">
         <label className="text-sm">
           From
           <input
@@ -83,19 +91,15 @@ export default async function Page({
             ))}
           </select>
         </label>
-        <button className="flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm text-white">
+        <Button>
           <Search size={16} />
           Apply
-        </button>
+        </Button>
       </form>
-      {error && (
-        <p role="alert" className="text-red-600">
-          {error.message}
-        </p>
-      )}
+      {error && <BrokerLoadError error={error} />}
       {report && (
         <>
-          <dl className="grid grid-cols-2 gap-5 border-y border-zinc-200 py-5 md:grid-cols-4 dark:border-zinc-800">
+          <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
             {[
               ["Live listings", report.listed],
               ["Without current offers", report.without_offers],
@@ -111,21 +115,19 @@ export default async function Page({
                   : "N/A",
               ],
             ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs text-zinc-500">{label}</dt>
-                <dd className="mt-1 break-words text-xl font-semibold tabular-nums">
+              <div key={label} className="min-w-0 rounded-[1.25rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_16px_45px_rgb(33_25_20/0.06)] dark:shadow-none">
+                <dt className="text-xs font-black uppercase tracking-[0.12em] text-[var(--muted)]">{label}</dt>
+                <dd className="mt-2 text-2xl font-bold tabular-nums text-zinc-950 [overflow-wrap:anywhere] dark:text-zinc-50">
                   {value}
                 </dd>
               </div>
             ))}
           </dl>
-          <section className="space-y-3">
-            <h2 className="font-semibold">
-              Reservation Attempts Started in Period
-            </h2>
+          <Card className="space-y-3">
+            <CardTitle>Reservation Attempts Started in Period</CardTitle>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[650px] text-left text-sm">
-                <thead>
+                <thead className="text-xs font-black uppercase text-[var(--muted)]">
                   <tr>
                     {[
                       "Broker",
@@ -165,11 +167,11 @@ export default async function Page({
               </table>
             </div>
             {!report.brokers.length && (
-              <p className="text-sm text-zinc-500">No reservation attempts.</p>
+              <p className="text-sm text-[var(--muted)]">No reservation attempts.</p>
             )}
-          </section>
-          <section className="space-y-2">
-            <h2 className="font-semibold">Expiry &amp; Release Reasons</h2>
+          </Card>
+          <Card className="space-y-2">
+            <CardTitle>Expiry &amp; Release Reasons</CardTitle>
             {report.outcomes.map((r) => (
               <p key={r.reason} className="flex justify-between gap-3 text-sm">
                 <span>{r.reason}</span>
@@ -177,20 +179,20 @@ export default async function Page({
               </p>
             ))}
             {!report.outcomes.length && (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-[var(--muted)]">
                 No expired or released attempts.
               </p>
             )}
-          </section>
-          <section className="space-y-3">
-            <h2 className="font-semibold">Recently Listed Cases (up to 100)</h2>
+          </Card>
+          <Card className="space-y-3">
+            <CardTitle>Recently Listed Cases (up to 100)</CardTitle>
             {report.cases.map((c) => (
               <Link
                 key={c.id}
                 href={`/manager/cases/${c.id}`}
-                className="flex flex-wrap justify-between gap-2 border-b border-zinc-100 pb-3 text-sm dark:border-zinc-800"
+                className="flex flex-wrap justify-between gap-2 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3 text-sm transition hover:border-[var(--brand)]"
               >
-                <span className="text-blue-600">
+                <span className="font-black text-[var(--brand)]">
                   {c.case_ref} / {c.branch_name}
                 </span>
                 <span className="capitalize">
@@ -201,7 +203,7 @@ export default async function Page({
                 </span>
               </Link>
             ))}
-          </section>
+          </Card>
         </>
       )}
     </div>

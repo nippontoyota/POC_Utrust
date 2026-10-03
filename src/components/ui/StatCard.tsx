@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react";
 type Tone = "default" | "accent" | "warning" | "danger";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  default: "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
-  accent: "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40",
+  default: "border-[var(--line)] bg-[var(--panel)]",
+  accent: "border-red-200 bg-red-50/90 dark:border-red-950 dark:bg-red-950/35",
   warning: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40",
   danger: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40",
 };
@@ -25,11 +25,15 @@ export function StatCard({
 }) {
   const content = (
     <>
-      <div className="flex items-start justify-between">
-        <p className="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">{value}</p>
-        {Icon && <Icon className="h-5 w-5 text-zinc-400 dark:text-zinc-500" strokeWidth={1.75} />}
+      <div className="flex min-h-10 items-center justify-between gap-3">
+        <p className="min-w-0 text-sm font-medium leading-snug text-[var(--muted)]">{label}</p>
+        {Icon && (
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-black text-white dark:bg-[var(--panel-soft)] dark:text-zinc-100">
+            <Icon className="size-5" strokeWidth={1.75} />
+          </span>
+        )}
       </div>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="mt-3 text-2xl font-bold tabular-nums text-zinc-950 [overflow-wrap:anywhere] dark:text-zinc-50">{value}</p>
     </>
   );
 
@@ -37,12 +41,12 @@ export function StatCard({
     return (
       <Link
         href={href}
-        className={`block rounded-lg border p-5 transition-colors hover:border-blue-300 hover:shadow-sm dark:hover:border-blue-800 ${TONE_CLASSES[tone]}`}
+        className={`block min-w-0 rounded-[1.35rem] border p-5 shadow-[0_20px_60px_rgb(33_25_20/0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)] hover:shadow-[0_22px_70px_rgb(226_61_47/0.14)] dark:shadow-none dark:hover:shadow-none ${TONE_CLASSES[tone]}`}
       >
         {content}
       </Link>
     );
   }
 
-  return <div className={`rounded-lg border p-5 ${TONE_CLASSES[tone]}`}>{content}</div>;
+  return <div className={`min-w-0 rounded-[1.35rem] border p-5 shadow-[0_20px_60px_rgb(33_25_20/0.07)] dark:shadow-none ${TONE_CLASSES[tone]}`}>{content}</div>;
 }

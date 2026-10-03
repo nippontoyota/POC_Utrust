@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { BrandMark } from "@/components/BrandMark";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 export default function SignupPage() {
@@ -100,20 +101,30 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
-      <div className="fixed top-4 right-4">
+    <main className="nt-shell relative min-h-screen overflow-hidden px-4 py-8">
+      <div className="nt-route-lines pointer-events-none absolute inset-0" />
+      <div className="fixed right-4 top-4 z-20">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 text-sm font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">
-            UT
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <div>
+              <p className="text-sm font-black text-zinc-950 dark:text-zinc-100">Nippon Toyota UTrust</p>
+              <p className="text-xs font-medium text-[var(--muted)]">Staff onboarding</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Create staff account</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Sales Officer / Purchase Officer</p>
+          <div className="max-w-md">
+            <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--brand)]">Staff access</p>
+            <h1 className="mt-3 text-4xl font-black leading-tight text-zinc-950 dark:text-zinc-100">Create a controlled workspace account.</h1>
+            <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+              Sales Officers capture vehicles and RC book photos. Purchase Officers evaluate assigned cases.
+            </p>
+          </div>
         </div>
 
-        <Card as="form" onSubmit={handleSubmit} autoComplete="off" className="space-y-4 shadow-sm">
+        <Card as="form" onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
           <FormField label="Employee ID">
             <input
               type="text"
@@ -198,13 +209,13 @@ export default function SignupPage() {
           </Button>
         </Card>
 
-        <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-center text-sm text-[var(--muted)] lg:col-start-2">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+          <Link href="/login" className="font-black text-[var(--brand)] hover:underline">
             Sign in
           </Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

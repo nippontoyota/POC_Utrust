@@ -2,8 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BrokerAdmin } from "@/components/broker/BrokerAdmin";
+import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 import { AutoRefresh } from "@/components/broker/Refresh";
 import { inputClass } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function Page({
   searchParams,
@@ -45,12 +49,14 @@ export default async function Page({
           .is("suspended_at", null);
   const { data, error, count } = await query;
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <AutoRefresh />
-      <h1 className="text-xl font-semibold">
-        Broker Applications &amp; Access
-      </h1>
-      <form className="flex gap-2">
+      <PageHeader
+        eyebrow="Group manager"
+        title="Broker Applications & Access"
+        description="Approve brokers, suspend marketplace access, and keep broker status auditable."
+      />
+      <form className="flex gap-2 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
         <select
           name="status"
           aria-label="Broker status"
@@ -63,29 +69,27 @@ export default async function Page({
             </option>
           ))}
         </select>
-        <button className="rounded-md border px-4 text-sm">Filter</button>
+        <Button type="submit" variant="secondary">
+          Filter
+        </Button>
       </form>
-      {error && (
-        <p role="alert" className="text-red-600">
-          {error.message}
-        </p>
-      )}
+      {error && <BrokerLoadError error={error} area="access" />}
       {!error && !data?.length && (
-        <p className="text-sm text-zinc-500">No brokers in this view.</p>
+        <EmptyState message="No brokers in this view." />
       )}
-      {data?.map((b) => (
-        <BrokerAdmin key={b.id} broker={b} />
-      ))}
-      <div className="flex justify-between text-sm">
-        {page > 0 ? (
-          <Link href={`?status=${status}&page=${page - 1}`}>Previous</Link>
-        ) : (
-          <span />
-        )}
-        {(page + 1) * 20 < (count ?? 0) && (
-          <Link href={`?status=${status}&page=${page + 1}`}>Next</Link>
-        )}
-      </div>
+      {!error && data?.map((b) => <BrokerAdmin key={b.id} broker={b} />)}
+      {!error && (
+        <div className="flex justify-between text-sm">
+          {page > 0 ? (
+            <Link href={`?status=${status}&page=${page - 1}`}>Previous</Link>
+          ) : (
+            <span />
+          )}
+          {(page + 1) * 20 < (count ?? 0) && (
+            <Link href={`?status=${status}&page=${page + 1}`}>Next</Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

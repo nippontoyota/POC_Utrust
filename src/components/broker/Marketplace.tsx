@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { inputClass } from "@/components/ui/FormField";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { formatINR } from "@/lib/formatCurrency";
 import type { MarketplaceResult } from "@/lib/broker";
 import { AutoRefresh, Deadline } from "./Refresh";
@@ -47,13 +48,15 @@ export async function Marketplace({
   return (
     <div className="space-y-5">
       <AutoRefresh />
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <span className="text-sm text-zinc-500">
+      <PageHeader
+        eyebrow="Broker desk"
+        title={title}
+        description="Browse broker-safe vehicle listings, manage private offers, and track active holds."
+        actions={<span className="rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-sm font-black text-[var(--muted)] shadow-sm">
           {result?.total ?? 0} vehicles
-        </span>
-      </div>
-      <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+        </span>}
+      />
+      <form className="grid gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)] sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
         <input
           name="q"
           aria-label="Search make, model or reference"
@@ -88,7 +91,7 @@ export async function Marketplace({
         <button
           aria-label="Search vehicles"
           title="Search vehicles"
-          className="flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-white"
+          className="flex min-h-12 items-center justify-center rounded-full bg-[var(--brand)] px-5 py-2 text-white shadow-[0_14px_30px_rgb(226_61_47/0.22)] transition hover:bg-[var(--brand-strong)]"
         >
           <Search size={18} />
         </button>
@@ -107,7 +110,7 @@ export async function Marketplace({
         {result?.items.map((v) => (
           <article
             key={v.id}
-            className="min-w-0 space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+            className="min-w-0 space-y-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_20px_60px_rgb(33_25_20/0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-zinc-500">{v.case_ref}</span>
@@ -119,7 +122,7 @@ export async function Marketplace({
             </div>
             <Link
               href={`/broker/vehicles/${v.id}`}
-              className="block text-lg font-semibold text-blue-600 dark:text-blue-400"
+              className="block text-lg font-black text-zinc-950 hover:text-[var(--brand)] dark:text-zinc-100"
             >
               {v.make} {v.model} {v.variant}
             </Link>
@@ -153,7 +156,7 @@ export async function Marketplace({
       </div>
       <nav
         aria-label="Pagination"
-        className="flex items-center justify-between border-t border-zinc-200 pt-4 text-sm dark:border-zinc-800"
+        className="flex items-center justify-between border-t border-[var(--line)] pt-4 text-sm font-bold text-[var(--muted)]"
       >
         {page > 0 ? (
           <Link

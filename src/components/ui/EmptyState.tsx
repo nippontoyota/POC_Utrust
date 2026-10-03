@@ -9,9 +9,11 @@ export function EmptyState({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center dark:border-zinc-700 dark:bg-zinc-900">
-      <Icon className="h-8 w-8 text-zinc-300 dark:text-zinc-600" strokeWidth={1.5} />
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+    <div className="flex flex-col items-center gap-3 rounded-[1.35rem] border border-dashed border-[var(--line)] bg-[var(--panel)] p-10 text-center shadow-[0_20px_60px_rgb(33_25_20/0.06)]">
+      <span className="grid h-14 w-14 place-items-center rounded-full bg-red-50 text-[var(--brand)] dark:bg-red-950/40">
+        <Icon className="h-7 w-7" strokeWidth={1.75} />
+      </span>
+      <p className="max-w-sm text-sm font-medium text-[var(--muted)]">{message}</p>
     </div>
   );
 }

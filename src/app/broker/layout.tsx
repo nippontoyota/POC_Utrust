@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { AppHeader } from "@/components/AppHeader";
+import { AppShell } from "@/components/AppShell";
 import { SignOutButton } from "@/components/SignOutButton";
-import { RoleNav } from "@/components/RoleNav";
 
 export default async function BrokerLayout({
   children,
@@ -20,8 +19,8 @@ export default async function BrokerLayout({
 
   if (!broker || broker.status !== "approved" || broker.suspended_at) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
-        <div className="w-full max-w-sm space-y-4 rounded-lg border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="nt-shell flex min-h-screen items-center justify-center px-4">
+        <div className="w-full max-w-sm space-y-4 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-6 text-center shadow-[0_24px_70px_rgb(33_25_20/0.1)]">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             {broker?.suspended_at
               ? "Account suspended"
@@ -43,21 +42,26 @@ export default async function BrokerLayout({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <AppHeader
-        roleLabel="Broker"
-        name={broker.company_name}
-        subtitle={broker.broker_ref}
-      />
-      <RoleNav
-        links={[
-          { href: "/broker/dashboard", label: "Marketplace" },
-          { href: "/broker/offers", label: "My Offers" },
-          { href: "/broker/reservations", label: "Reservations" },
-          { href: "/broker/history", label: "Deal History" },
-        ]}
-      />
-      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
-    </div>
+    <AppShell
+      roleLabel="Broker"
+      name={broker.company_name}
+      subtitle={broker.broker_ref}
+      links={[
+        {
+          href: "/broker/dashboard",
+          label: "Marketplace",
+          icon: "marketplace",
+        },
+        { href: "/broker/offers", label: "My Offers", icon: "offers" },
+        {
+          href: "/broker/reservations",
+          label: "Reservations",
+          icon: "reservations",
+        },
+        { href: "/broker/history", label: "Deal History", icon: "history" },
+      ]}
+    >
+      {children}
+    </AppShell>
   );
 }

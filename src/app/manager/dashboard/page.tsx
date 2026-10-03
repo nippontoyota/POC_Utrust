@@ -5,9 +5,11 @@ import { formatINR } from "@/lib/formatCurrency";
 import { isOverdue } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { Enums } from "@/lib/supabase/database.types";
 import type { BrokerReport } from "@/lib/broker";
 import { AutoRefresh } from "@/components/broker/Refresh";
+import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 
 type CaseStatus = Enums<"case_status">;
 
@@ -66,9 +68,13 @@ export default async function ManagerDashboardPage() {
   return (
     <div className="space-y-6">
       <AutoRefresh />
-      <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+      <PageHeader
+        eyebrow="Management overview"
+        title="Dashboard"
+        description="Track evaluation health, direct purchases, broker closures, and inventory movement."
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
         <StatCard label="Total active + closed cases" value={rows.length} icon={LayoutList} />
         <StatCard
           label="Overdue evaluations"
@@ -84,11 +90,11 @@ export default async function ManagerDashboardPage() {
           icon={Timer}
         />
       </div>
-      {brokerError && <p role="alert" className="text-sm text-red-600">Broker reporting: {brokerError.message}</p>}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Broker closed deals" value={brokerReport?.completed ?? 0} icon={CheckCircle2} href="/manager/marketplace" />
-        <StatCard label="Broker deal value" value={formatINR(brokerReport?.deal_value ?? 0)} icon={Wallet} href="/manager/marketplace" />
-        <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? 0} icon={AlertTriangle} href="/manager/marketplace" />
+      {brokerError && <BrokerLoadError error={brokerError} />}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
+        <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
+        <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />
+        <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
         <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} />
       </div>
 
@@ -98,9 +104,9 @@ export default async function ManagerDashboardPage() {
           {statusOrder.map((status) => (
             <div
               key={status}
-              className="flex items-center justify-between rounded-md border border-zinc-100 px-3 py-2 dark:border-zinc-800"
-            >
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">{CASE_STATUS_LABELS[status]}</span>
+            className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3"
+          >
+              <span className="text-sm font-medium text-[var(--muted)]">{CASE_STATUS_LABELS[status]}</span>
               <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                 {statusCounts[status] ?? 0}
               </span>

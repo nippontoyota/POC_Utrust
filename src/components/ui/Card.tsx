@@ -9,7 +9,7 @@ export function Card<T extends ElementType = "div">({ as, className = "", ...pro
   const Component = as ?? "div";
   return (
     <Component
-      className={`rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900 ${className}`}
+      className={`rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-5 shadow-[0_24px_70px_rgb(33_25_20/0.08)] dark:shadow-none sm:p-6 ${className}`}
       {...props}
     />
   );
@@ -18,7 +18,7 @@ export function Card<T extends ElementType = "div">({ as, className = "", ...pro
 export function CardTitle({ className = "", ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={`mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100 ${className}`}
+      className={`mb-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-900 dark:text-zinc-100 ${className}`}
       {...props}
     />
   );

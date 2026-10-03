@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createDraftCase } from "@/lib/actions/cases";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { AutoRefresh } from "@/components/broker/Refresh";
+import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 
 export default async function SoDashboardPage() {
   const supabase = await createClient();
@@ -19,16 +21,18 @@ export default async function SoDashboardPage() {
   return (
     <div className="space-y-6">
       <AutoRefresh />
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
-        <form action={createDraftCase}>
+      <PageHeader
+        eyebrow="Sales cockpit"
+        title="Dashboard"
+        description="Create cases, monitor customer decisions, and move rejected vehicles into the broker marketplace."
+        actions={<form action={createDraftCase}>
           <Button type="submit">
             <Plus className="h-4 w-4" /> New Case
           </Button>
-        </form>
-      </div>
+        </form>}
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
         <StatCard
           label="Draft cases"
           value={draftCount ?? 0}
@@ -43,16 +47,16 @@ export default async function SoDashboardPage() {
           href="/so/cases?status=pending_customer_decision"
         />
         <StatCard label="Total cases" value={totalCount ?? 0} icon={LayoutList} href="/so/cases" />
-        <StatCard label="Open broker cases" value={brokerCounts?.listed ?? 0} icon={LayoutList} href="/so/cases" />
-        <StatCard label="Active broker reservations" value={brokerCounts?.reserved ?? 0} icon={Clock} href="/so/cases" />
-        <StatCard label="Broker cases awaiting selection" value={brokerCounts?.awaiting_selection ?? 0} icon={FileText} href="/so/cases" />
-        <StatCard label="Broker holds expiring within 2 hours" value={brokerCounts?.expiring ?? 0} icon={Clock} href="/so/cases" />
+        <StatCard label="Open broker cases" value={brokerCounts?.listed ?? "Unavailable"} icon={LayoutList} href="/so/cases" />
+        <StatCard label="Active broker reservations" value={brokerCounts?.reserved ?? "Unavailable"} icon={Clock} href="/so/cases" />
+        <StatCard label="Broker cases awaiting selection" value={brokerCounts?.awaiting_selection ?? "Unavailable"} icon={FileText} href="/so/cases" />
+        <StatCard label="Broker holds expiring within 2 hours" value={brokerCounts?.expiring ?? "Unavailable"} icon={Clock} href="/so/cases" />
       </div>
-      {brokerError && <p role="alert" className="text-sm text-red-600">Broker activity: {brokerError.message}</p>}
+      {brokerError && <BrokerLoadError error={brokerError} />}
 
       <Link
         href="/so/cases"
-        className="inline-block text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+        className="inline-block text-sm font-black text-[var(--brand)] hover:underline"
       >
         View all cases &rarr;
       </Link>

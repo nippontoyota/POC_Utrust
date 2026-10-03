@@ -13,15 +13,28 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#18181b",
-          borderRadius: 96,
+          background: "#0f0f0f",
+          borderRadius: 128,
           color: "#ffffff",
-          fontSize: 220,
-          fontWeight: 700,
+          fontSize: 178,
+          fontWeight: 900,
           fontFamily: "Arial, sans-serif",
+          position: "relative",
         }}
       >
-        UT
+        NT
+        <div
+          style={{
+            position: "absolute",
+            right: 82,
+            top: 82,
+            width: 68,
+            height: 68,
+            borderRadius: 999,
+            background: "#e23d2f",
+            border: "14px solid #ffffff",
+          }}
+        />
       </div>
     ),
     { ...size }

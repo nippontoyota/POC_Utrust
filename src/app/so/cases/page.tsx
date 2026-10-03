@@ -5,6 +5,7 @@ import { createDraftCase } from "@/lib/actions/cases";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
@@ -30,15 +31,17 @@ export default async function SoCasesPage({
   const { data: cases } = await query;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">My Cases</h1>
-        <form action={createDraftCase}>
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Sales cases"
+        title="My Cases"
+        description="Draft inspections, submitted evaluations, customer decisions, and broker-listed vehicles."
+        actions={<form action={createDraftCase}>
           <Button type="submit">
             <Plus className="h-4 w-4" /> New Case
           </Button>
-        </form>
-      </div>
+        </form>}
+      />
 
       {status && (
         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -47,7 +50,7 @@ export default async function SoCasesPage({
           </span>
           <Link
             href="/so/cases"
-            className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400"
+            className="inline-flex items-center gap-1 font-black text-[var(--brand)] hover:underline"
           >
             <X className="h-3.5 w-3.5" /> Clear
           </Link>
@@ -78,9 +81,9 @@ export default async function SoCasesPage({
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 bg-white md:block dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
             <table className="w-full min-w-[560px] text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+              <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                 <tr>
                   <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
                   <th className="whitespace-nowrap px-4 py-3">Customer</th>
@@ -91,11 +94,11 @@ export default async function SoCasesPage({
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {cases.map((c) => (
-                  <tr key={c.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <tr key={c.id} className="hover:bg-[var(--panel-soft)]">
                     <td className="whitespace-nowrap px-4 py-3">
                       <Link
                         href={`/so/cases/${c.id}`}
-                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        className="font-black text-[var(--brand)] hover:underline"
                       >
                         {c.case_ref ?? "(draft)"}
                       </Link>

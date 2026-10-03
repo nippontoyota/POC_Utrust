@@ -2,25 +2,71 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  FolderOpen,
+  ChartNoAxesCombined,
+  UsersRound,
+  CarFront,
+  HandCoins,
+  CalendarClock,
+  History,
+} from "lucide-react";
 
-export function RoleNav({ links }: { links: { href: string; label: string }[] }) {
+const icons = {
+  dashboard: LayoutDashboard,
+  cases: FolderOpen,
+  performance: ChartNoAxesCombined,
+  access: UsersRound,
+  marketplace: CarFront,
+  offers: HandCoins,
+  reservations: CalendarClock,
+  history: History,
+};
+
+export type RoleNavLink = {
+  href: string;
+  label: string;
+  icon: keyof typeof icons;
+};
+
+export function RoleNav({
+  links,
+  collapsed = false,
+  onNavigate,
+}: {
+  links: RoleNavLink[];
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky top-[65px] z-10 flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white/90 px-6 py-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <nav aria-label="Main navigation" className="space-y-1">
       {links.map((link) => {
-        const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const active =
+          pathname === link.href ||
+          pathname.startsWith(`${link.href}/`) ||
+          (link.href === "/broker/dashboard" &&
+            pathname.startsWith("/broker/vehicles/"));
+        const Icon = icons[link.icon];
         return (
           <Link
             key={link.href}
             href={link.href}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            title={collapsed ? link.label : undefined}
+            className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] ${collapsed ? "justify-center" : ""} ${
               active
-                ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                ? "bg-[var(--foreground)] text-[var(--background)]"
+                : "text-[var(--muted)] hover:bg-[var(--panel-soft)] hover:text-[var(--foreground)]"
             }`}
           >
-            {link.label}
+            <Icon aria-hidden="true" className="size-5" strokeWidth={1.75} />
+            <span className={collapsed ? "sr-only" : "min-w-0"}>
+              {link.label}
+            </span>
           </Link>
         );
       })}

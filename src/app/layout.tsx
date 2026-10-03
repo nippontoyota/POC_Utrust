@@ -11,20 +11,21 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
-  title: "UTrust POC",
+  title: "Nippon Toyota UTrust",
   description: "Nippon Toyota UTrust Pre-Owned Cars",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "UTrust",
+    title: "Nippon UTrust",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#18181b",
+  themeColor: "#e23d2f",
   width: "device-width",
   initialScale: 1,
 };
@@ -33,8 +34,7 @@ const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = localStorage.getItem("theme");
-    var isDark = stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (isDark) document.documentElement.setAttribute("data-theme", "dark");
+    document.documentElement.setAttribute("data-theme", stored === "dark" ? "dark" : "light");
   } catch (e) {}
 })();
 `;
@@ -50,7 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col font-sans">
         {children}
         <ServiceWorkerRegister />
       </body>
