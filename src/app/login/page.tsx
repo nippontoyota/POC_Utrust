@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Car, Store, UserRound } from "lucide-react";
+import { Car, Eye, EyeOff, Store, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { employeeIdToAuthEmail } from "@/lib/employeeAuth";
 import { Card } from "@/components/ui/Card";
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [employeeId, setEmployeeId] = useState("");
   const [mode, setMode] = useState<"staff" | "broker">("staff");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -132,16 +133,31 @@ export default function LoginPage() {
           </FormField>
 
           <FormField label="Password">
-            <input
-              id="password"
-              type="password"
-              name="current-password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                name="current-password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${inputClass} pr-12`}
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute right-3 top-[calc(50%+0.125rem)] inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-black/5 hover:text-zinc-950 focus:outline-none focus:ring-4 focus:ring-red-500/10 dark:hover:bg-white/10 dark:hover:text-zinc-100"
+              >
+                {showPassword ? (
+                  <EyeOff aria-hidden="true" className="size-4" />
+                ) : (
+                  <Eye aria-hidden="true" className="size-4" />
+                )}
+              </button>
+            </div>
           </FormField>
 
           {error && (

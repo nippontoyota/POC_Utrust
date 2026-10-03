@@ -127,25 +127,36 @@ export default async function ManagerCaseDetailPage({
       )}
 
       <StaffBrokerPanel caseId={id} status={caseRow.status} readOnly />
-      <Card>
+      <Card as="section" aria-label="Activity Log">
         <CardTitle>Activity Log</CardTitle>
         <ol className="space-y-0">
-          {(events ?? []).map((e, i, arr) => (
-            <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
-              <div className="flex flex-col items-center">
-                <div className="h-2 w-2 shrink-0 rounded-full bg-blue-500 dark:bg-blue-400" />
-                {i < arr.length - 1 && <div className="w-px flex-1 bg-zinc-200 dark:bg-zinc-800" />}
-              </div>
-              <div className="flex flex-1 items-start justify-between gap-2 pb-1">
-                <span className="text-sm capitalize text-zinc-700 dark:text-zinc-300">
-                  {e.event_type.replace(/_/g, " ")}
-                </span>
-                <span className="whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
-                  {new Date(e.created_at).toLocaleString("en-IN")}
-                </span>
-              </div>
-            </li>
-          ))}
+          {(events ?? []).map((e, i, arr) => {
+            const metadata = e.metadata && typeof e.metadata === "object" && !Array.isArray(e.metadata)
+              ? e.metadata
+              : {};
+            const amount = metadata.amount ?? metadata.offer_price;
+            return (
+              <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
+                <div className="flex flex-col items-center">
+                  <div className="h-2 w-2 shrink-0 rounded-full bg-blue-500 dark:bg-blue-400" />
+                  {i < arr.length - 1 && <div className="w-px flex-1 bg-zinc-200 dark:bg-zinc-800" />}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2 pb-1">
+                  <div className="min-w-0 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    <p className="capitalize">{e.event_type.replace(/_/g, " ")}</p>
+                    {e.actor_role && <p className="text-xs capitalize text-zinc-500">{e.actor_role.replace(/_/g, " ")}</p>}
+                    {typeof amount === "number" && <p>{formatINR(amount)}</p>}
+                    {typeof metadata.decision === "string" && <p className="capitalize">Customer: {metadata.decision}</p>}
+                    {typeof metadata.broker_consent === "boolean" && <p>Broker consent: {metadata.broker_consent ? "Yes" : "No"}</p>}
+                    {e.notes && <p className="break-words">{e.notes}</p>}
+                  </div>
+                  <time dateTime={e.created_at} className="whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
+                    {new Date(e.created_at).toLocaleString("en-IN")}
+                  </time>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </Card>
     </div>

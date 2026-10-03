@@ -91,3 +91,25 @@ npm run build -- --webpack
 ```
 
 Coverage includes privacy/RLS, photo review, scoped reports, approval/suspension, draft editing, direct purchase, private offers, stale revisions, competing selections, deadline boundaries, completion confirmations, reconfirmation, consent withdrawal, and idempotent cleanup. PGlite has one connection; exercise multi-session contention and actual Cron/Storage integration in staging too.
+
+## Persistent Vehicle Journey Tests
+
+`scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, branch managers, a group manager, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
+
+The default run is `QA20261003A`. In **Manager > All Cases**, search for that marker, or open `/manager/cases?q=QA20261003A`. Case detail shows the saved activity log, acting roles, decision reasons, prices, and broker reservation history. SO and PO accounts see their own branch assignments; brokers see their own bids and reservations.
+
+The twelve retained scenarios cover direct purchase closed, broker sale closed, an accepted active 48-hour hold, released/rejected/reconfirmed bidding, rejection without listing consent, SO withdrawal, direct purchase cancellation, consent withdrawal after broker suspension/reactivation, and cases left at draft, evaluation, customer decision, and purchase completion stages. The active hold expires normally after 48 hours. Deadline/cron edge cases run in the isolated database suite above; the live test never backdates reservations.
+
+Install the browser test tools outside the application dependencies and run the app first:
+
+```bash
+npm install --prefix /tmp/utrust-ui-check --no-package-lock --no-save @playwright/test@1.63.0
+node scripts/test-vehicle-journeys.mjs --preflight
+PLAYWRIGHT_MODULE=/tmp/utrust-ui-check/node_modules/playwright/index.mjs \
+PLAYWRIGHT_TEST_MODULE=/tmp/utrust-ui-check/node_modules/@playwright/test/index.mjs \
+node scripts/test-vehicle-journeys.mjs --run-live
+```
+
+The runner uses `/usr/bin/chromium-browser` by default; override with `QA_CHROMIUM`. Override the app URL with `QA_BASE_URL`. A new fixture needs two branches without active POs, so test submissions never get assigned to existing staff. Account provisioning alone uses the service key; case workflows use the actual UI and role-authenticated RPCs, including simultaneous competing selection requests.
+
+Results, screenshots, progress checkpoints, and private test login credentials are written under `test-results/QA20261003A/` (gitignored). `credentials.json` contains the generated test password and account identifiers; it must not be published. `report.json` contains verification results and case URLs without passwords or tokens. Re-running `--run-live` resumes completed checkpoints. Use `--verify-only` with the same Playwright environment variables to inspect existing records/screens without creating or progressing vehicles. Use a different `QA_RUN_ID` beginning with `QA` to create a separate dataset.
