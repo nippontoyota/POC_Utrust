@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 export default function LoginPage() {
   const router = useRouter();
   const [employeeId, setEmployeeId] = useState("");
+  const [mode, setMode] = useState<"staff" | "broker">("staff");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,14 +25,14 @@ export default function LoginPage() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email: employeeIdToAuthEmail(employeeId),
+      email: mode === "broker" ? employeeId.trim().toLowerCase() : employeeIdToAuthEmail(employeeId),
       password,
     });
 
     setLoading(false);
 
     if (error) {
-      setError("Invalid Employee ID or password.");
+      setError(mode === "broker" ? "Invalid email or password." : "Invalid Employee ID or password.");
       return;
     }
 
@@ -54,10 +55,13 @@ export default function LoginPage() {
         </div>
 
         <Card as="form" onSubmit={handleSubmit} className="space-y-4 shadow-sm">
-          <FormField label="Employee ID">
+          <div className="grid grid-cols-2 gap-1 rounded-md bg-zinc-100 p-1 dark:bg-zinc-800" aria-label="Account type">
+            {(["staff", "broker"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); setEmployeeId(""); setError(null); }} className={`rounded px-3 py-2 text-sm capitalize ${mode === value ? "bg-white font-semibold text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white" : "text-zinc-500"}`}>{value}</button>)}
+          </div>
+          <FormField label={mode === "broker" ? "Email" : "Employee ID"}>
             <input
               id="employeeId"
-              type="text"
+              type={mode === "broker" ? "email" : "text"}
               name="username"
               autoComplete="username"
               required

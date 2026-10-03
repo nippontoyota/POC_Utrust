@@ -21,7 +21,7 @@ export async function GET(
 
   const { data: photo } = await service
     .from("case_photos")
-    .select("id, storage_path, is_plate_visible, case_id")
+    .select("id, storage_path, category, is_plate_visible, broker_visible, case_id")
     .eq("id", photoId)
     .single();
 
@@ -31,7 +31,7 @@ export async function GET(
 
   const { data: caseRow } = await service
     .from("cases")
-    .select("id, sales_officer_id, assigned_po_id, branch_id, status")
+    .select("id, sales_officer_id, assigned_po_id, branch_id, status, broker_consent")
     .eq("id", photo.case_id)
     .single();
 
@@ -40,24 +40,24 @@ export async function GET(
   }
 
   const [{ data: profile }, { data: broker }] = await Promise.all([
-    service.from("profiles").select("role, branch_id, is_group_manager").eq("id", user.id).maybeSingle(),
-    service.from("brokers").select("status").eq("id", user.id).maybeSingle(),
+    service.from("profiles").select("role, branch_id, is_group_manager, is_active").eq("id", user.id).maybeSingle(),
+    service.from("brokers").select("status, suspended_at").eq("id", user.id).maybeSingle(),
   ]);
 
   let authorized = false;
 
-  if (profile) {
+  if (profile?.is_active) {
     if (profile.role === "sales_officer" && caseRow.sales_officer_id === user.id) authorized = true;
     if (profile.role === "purchase_officer" && caseRow.assigned_po_id === user.id) authorized = true;
     if (profile.role === "manager" && (profile.is_group_manager || profile.branch_id === caseRow.branch_id)) {
       authorized = true;
     }
-  } else if (broker && broker.status === "approved") {
+  } else if (!profile && broker && broker.status === "approved" && !broker.suspended_at) {
     // Brokers only ever see plate-hidden photos on listed cases -- never the
     // reverse. This is the one place that rule is enforced, deliberately
     // centralized rather than duplicated across every caller.
     const listedStatuses = ["listed_for_brokers", "broker_offer_selected"];
-    if (listedStatuses.includes(caseRow.status) && !photo.is_plate_visible) {
+    if (listedStatuses.includes(caseRow.status) && caseRow.broker_consent && photo.category !== "rc_book" && photo.broker_visible && !photo.is_plate_visible) {
       authorized = true;
     }
   }

@@ -22,6 +22,8 @@ export default async function ManagerLayout({ children }: { children: React.Reac
         links={[
           { href: "/manager/dashboard", label: "Dashboard" },
           { href: "/manager/cases", label: "All Cases" },
+          { href: "/manager/marketplace", label: "Broker Performance" },
+          ...(profile?.is_group_manager ? [{ href: "/manager/brokers", label: "Broker Access" }] : []),
         ]}
       />
       <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>

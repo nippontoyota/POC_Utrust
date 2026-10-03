@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CaseWorkspace } from "@/components/so/CaseWorkspace";
+import { StaffBrokerPanel } from "@/components/broker/StaffBrokerPanel";
 
 export default async function SoCaseDetailPage({
   params,
@@ -23,5 +24,5 @@ export default async function SoCaseDetailPage({
     supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
   ]);
 
-  return <CaseWorkspace initialCase={caseRow} initialPhotos={photos ?? []} offer={offer ?? null} />;
+  return <><CaseWorkspace initialCase={caseRow} initialPhotos={photos ?? []} offer={offer ?? null} /><StaffBrokerPanel caseId={id} status={caseRow.status} /></>;
 }

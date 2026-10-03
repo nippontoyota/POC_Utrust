@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ActionFeedback, useBrokerAction } from "@/components/broker/useBrokerAction";
 import { formatINR } from "@/lib/formatCurrency";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -37,6 +38,7 @@ export function PoCaseWorkspace({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const startAction = useBrokerAction();
   const canEvaluate = caseRow.status === "pending_evaluation" && !offer;
 
   async function handleSubmit() {
@@ -117,6 +119,9 @@ export function PoCaseWorkspace({
         <PhotoGallery photos={photos} />
       </Card>
 
+      <ActionFeedback error={startAction.error} success={startAction.success} />
+      {canEvaluate && !caseRow.evaluation_started_at && <Button disabled={startAction.busy} onClick={() => startAction.run("start_po_evaluation", { p_case_id: caseRow.id })}>Start Evaluation</Button>}
+      {caseRow.evaluation_started_at && <p className="text-sm text-zinc-500">{offer ? "Evaluation started" : "Evaluation in progress since"} {new Date(caseRow.evaluation_started_at).toLocaleString("en-IN")}</p>}
       {offer ? (
         <Card>
           <CardTitle>Your Evaluation</CardTitle>
@@ -127,7 +132,7 @@ export function PoCaseWorkspace({
             <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
           </div>
         </Card>
-      ) : canEvaluate ? (
+      ) : canEvaluate && caseRow.evaluation_started_at ? (
         <Card>
           <CardTitle>Evaluation &amp; Offer</CardTitle>
 
@@ -181,7 +186,7 @@ export function PoCaseWorkspace({
           </p>
         </Card>
       ) : (
-        <EmptyState message="This case is not currently awaiting your evaluation." />
+        <EmptyState message={canEvaluate ? "Awaiting evaluation." : "This case is not currently awaiting your evaluation."} />
       )}
     </div>
   );

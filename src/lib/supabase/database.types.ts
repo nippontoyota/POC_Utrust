@@ -1,3 +1,5 @@
+import type { MarketplaceFunctions } from "@/lib/broker";
+
 export type Json =
   | string
   | number
@@ -38,6 +40,11 @@ export type Database = {
       }
       brokers: {
         Row: {
+          broker_ref: string
+          suspended_at: string | null
+          status_reason: string | null
+          status_changed_at: string | null
+          status_changed_by: string | null
           approved_at: string | null
           approved_by: string | null
           company_name: string
@@ -160,6 +167,9 @@ export type Database = {
       }
       case_photos: {
         Row: {
+          broker_visible: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
           case_id: string
           category: string
           created_at: string
@@ -237,6 +247,7 @@ export type Database = {
       }
       cases: {
         Row: {
+          evaluation_started_at: string | null
           assigned_po_id: string | null
           branch_id: string
           broker_consent: boolean | null
@@ -433,7 +444,7 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
-    Functions: {
+    Functions: MarketplaceFunctions & {
       current_profile_branch: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_is_group_manager: { Args: Record<PropertyKey, never>; Returns: boolean }
       current_profile_role: {

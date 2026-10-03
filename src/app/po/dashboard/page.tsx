@@ -9,10 +9,11 @@ export default async function PoDashboardPage() {
 
   const [{ count: totalCount }, { data: pendingCases }] = await Promise.all([
     supabase.from("cases").select("id", { count: "exact", head: true }),
-    supabase.from("cases").select("id, submitted_at").eq("status", "pending_evaluation"),
+    supabase.from("cases").select("id, submitted_at, evaluation_started_at").eq("status", "pending_evaluation"),
   ]);
 
-  const pendingCount = pendingCases?.length ?? 0;
+  const pendingCount = pendingCases?.filter(c => !c.evaluation_started_at).length ?? 0;
+  const inProgressCount = pendingCases?.filter(c => c.evaluation_started_at).length ?? 0;
   const overdueCount = pendingCases?.filter((c) => isOverdue(c.submitted_at, 2)).length ?? 0;
 
   return (
@@ -35,6 +36,7 @@ export default async function PoDashboardPage() {
           href="/po/cases?overdue=1"
         />
         <StatCard label="Total assigned cases" value={totalCount ?? 0} icon={LayoutList} href="/po/cases" />
+        <StatCard label="Evaluations in progress" value={inProgressCount} icon={ClipboardList} href="/po/cases?status=pending_evaluation" />
       </div>
 
       <Link

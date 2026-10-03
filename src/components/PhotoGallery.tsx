@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import type { Tables } from "@/lib/supabase/database.types";
 
 type PhotoRow = Pick<Tables<"case_photos">, "id" | "category" | "file_size_bytes">;
@@ -12,6 +13,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   right: "Right side",
   interior_odometer: "Interior / dashboard",
   other: "Additional",
+  rc_book: "RC book / registration certificate",
 };
 
 export function PhotoGallery({ photos }: { photos: PhotoRow[] }) {
@@ -31,6 +33,7 @@ export function PhotoGallery({ photos }: { photos: PhotoRow[] }) {
 function PhotoThumb({ photo }: { photo: PhotoRow }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +60,17 @@ function PhotoThumb({ photo }: { photo: PhotoRow }) {
           Unavailable
         </div>
       ) : url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={photo.category} className="h-20 w-full rounded object-cover" />
+        <>
+          <button type="button" onClick={() => dialog.current?.showModal()} className="block w-full" aria-label={`Enlarge ${CATEGORY_LABELS[photo.category] ?? photo.category} photo`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={photo.category} className="h-20 w-full rounded object-cover" />
+          </button>
+          <dialog ref={dialog} className="fixed m-auto max-h-[95dvh] w-[min(95vw,1000px)] rounded-lg bg-white p-4 backdrop:bg-black/70 dark:bg-zinc-900" aria-label={`${photo.category} photo`}>
+            <div className="mb-3 flex items-center justify-between gap-3"><span className="text-sm">{CATEGORY_LABELS[photo.category] ?? photo.category}</span><button type="button" onClick={() => dialog.current?.close()} title="Close photo" aria-label="Close photo" className="p-2"><X size={20} /></button></div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={photo.category} className="max-h-[78dvh] w-full object-contain" />
+          </dialog>
+        </>
       ) : (
         <div className="h-20 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
       )}

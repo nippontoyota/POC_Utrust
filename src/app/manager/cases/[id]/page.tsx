@@ -7,6 +7,7 @@ import { PhotoGallery } from "@/components/PhotoGallery";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { DetailRow } from "@/components/ui/DetailRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StaffBrokerPanel } from "@/components/broker/StaffBrokerPanel";
 
 export default async function ManagerCaseDetailPage({
   params,
@@ -98,7 +99,7 @@ export default async function ManagerCaseDetailPage({
             <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
             {caseRow.customer_expected_price != null && (
               <DetailRow
-                label="Margin vs. customer expectation"
+                label="Difference from customer expectation"
                 value={formatINR(offer.offer_price - caseRow.customer_expected_price)}
               />
             )}
@@ -125,6 +126,7 @@ export default async function ManagerCaseDetailPage({
         </Card>
       )}
 
+      <StaffBrokerPanel caseId={id} status={caseRow.status} readOnly />
       <Card>
         <CardTitle>Activity Log</CardTitle>
         <ol className="space-y-0">

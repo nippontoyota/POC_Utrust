@@ -6,6 +6,8 @@ import { isOverdue } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardTitle } from "@/components/ui/Card";
 import type { Enums } from "@/lib/supabase/database.types";
+import type { BrokerReport } from "@/lib/broker";
+import { AutoRefresh } from "@/components/broker/Refresh";
 
 type CaseStatus = Enums<"case_status">;
 
@@ -14,7 +16,7 @@ export default async function ManagerDashboardPage() {
 
   const { data: cases } = await supabase
     .from("cases")
-    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, case_offers(offer_price)")
+    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, case_offers(offer_price,submitted_at)")
     .neq("status", "draft");
 
   const rows = cases ?? [];
@@ -32,9 +34,16 @@ export default async function ManagerDashboardPage() {
     return sum + (offer?.offer_price ?? 0);
   }, 0);
 
-  const evaluationTurnarounds = rows
-    .filter((c) => c.submitted_at && c.customer_decision_at)
-    .map((c) => (new Date(c.customer_decision_at!).getTime() - new Date(c.submitted_at!).getTime()) / (1000 * 60 * 60));
+  const { data: brokerData, error: brokerError } = await supabase.rpc("broker_report", {});
+  const brokerReport = brokerData as unknown as BrokerReport | null;
+  const evaluationTurnarounds = rows.flatMap(c => {
+    const offer = Array.isArray(c.case_offers) ? c.case_offers[0] : c.case_offers;
+    return c.submitted_at && offer?.submitted_at ? [(Date.parse(offer.submitted_at) - Date.parse(c.submitted_at)) / 3600000] : [];
+  });
+  const customerTurnarounds = rows.flatMap(c => {
+    const offer = Array.isArray(c.case_offers) ? c.case_offers[0] : c.case_offers;
+    return c.customer_decision_at && offer?.submitted_at ? [(Date.parse(c.customer_decision_at) - Date.parse(offer.submitted_at)) / 3600000] : [];
+  });
   const avgEvaluationHours =
     evaluationTurnarounds.length > 0
       ? evaluationTurnarounds.reduce((a, b) => a + b, 0) / evaluationTurnarounds.length
@@ -56,6 +65,7 @@ export default async function ManagerDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <AutoRefresh />
       <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Dashboard</h1>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -66,13 +76,20 @@ export default async function ManagerDashboardPage() {
           tone={overdueCount > 0 ? "danger" : "default"}
           icon={AlertTriangle}
         />
-        <StatCard label="Closed deals" value={closedCases.length} icon={CheckCircle2} />
-        <StatCard label="Closed deal value" value={formatINR(closedValue)} icon={Wallet} />
+        <StatCard label="Direct closed deals" value={closedCases.length} icon={CheckCircle2} />
+        <StatCard label="Direct deal value" value={formatINR(closedValue)} icon={Wallet} />
         <StatCard
-          label="Avg. evaluation-to-decision time"
+          label="Avg. PO turnaround"
           value={avgEvaluationHours !== null ? `${avgEvaluationHours.toFixed(1)} hrs` : "—"}
           icon={Timer}
         />
+      </div>
+      {brokerError && <p role="alert" className="text-sm text-red-600">Broker reporting: {brokerError.message}</p>}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Broker closed deals" value={brokerReport?.completed ?? 0} icon={CheckCircle2} href="/manager/marketplace" />
+        <StatCard label="Broker deal value" value={formatINR(brokerReport?.deal_value ?? 0)} icon={Wallet} href="/manager/marketplace" />
+        <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? 0} icon={AlertTriangle} href="/manager/marketplace" />
+        <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} />
       </div>
 
       <Card>

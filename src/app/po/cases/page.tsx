@@ -19,7 +19,7 @@ export default async function PoCasesPage({
 
   let query = supabase
     .from("cases")
-    .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, submitted_at")
+    .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, submitted_at, evaluation_started_at")
     .order("submitted_at", { ascending: false, nullsFirst: false });
 
   if (overdueFilter) {
@@ -78,6 +78,7 @@ export default async function PoCasesPage({
                     { label: "Customer", value: c.customer_name ?? "—" },
                     { label: "Vehicle", value: c.vehicle_reg_number ?? "—" },
                     { label: "Expected Price", value: formatINR(c.customer_expected_price) },
+                    ...(c.status === "pending_evaluation" ? [{ label: "Evaluation", value: c.evaluation_started_at ? "In progress" : "Awaiting start" }] : []),
                   ]}
                 />
               );
@@ -114,6 +115,7 @@ export default async function PoCasesPage({
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center gap-2">
                           <StatusBadge status={c.status} />
+                          {c.status === "pending_evaluation" && c.evaluation_started_at && <span className="text-xs text-zinc-500">In progress</span>}
                           {overdue && (
                             <span className="inline-block rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
                               Overdue

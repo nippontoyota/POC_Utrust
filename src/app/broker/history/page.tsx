@@ -7,5 +7,5 @@ export default async function Page({
 }: {
   searchParams: Promise<MarketParams>;
 }) {
-  return <Marketplace view="marketplace" params={await searchParams} />;
+  return <Marketplace view="history" params={await searchParams} />;
 }

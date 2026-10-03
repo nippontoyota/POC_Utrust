@@ -13,12 +13,12 @@ export function FormField({
   children: ReactNode;
 }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+    <label className="block">
+      <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
         {label}
         {required && <span className="text-red-500 dark:text-red-400"> *</span>}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }

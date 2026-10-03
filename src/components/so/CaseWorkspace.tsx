@@ -132,14 +132,14 @@ export function CaseWorkspace({
       setError("Each photo must be 5MB or smaller.");
       return;
     }
-    if (photos.length >= MAX_TOTAL_PHOTOS) {
-      setError(`You can upload at most ${MAX_TOTAL_PHOTOS} photos.`);
+    if (category !== "rc_book" && photos.filter(p => p.category !== "rc_book").length >= MAX_TOTAL_PHOTOS) {
+      setError(`You can upload at most ${MAX_TOTAL_PHOTOS} vehicle photos, plus the RC book photo.`);
       return;
     }
 
     setUploadingCategory(category);
 
-    const isRequiredSlot = REQUIRED_ANGLES.some((a) => a.key === category);
+    const isRequiredSlot = category === "rc_book" || REQUIRED_ANGLES.some((a) => a.key === category);
     if (isRequiredSlot) {
       const existing = photos.find((p) => p.category === category);
       if (existing) {
@@ -219,7 +219,7 @@ export function CaseWorkspace({
   const [reasonText, setReasonText] = useState("");
 
   async function runDecision(
-    fn: () => Promise<{ error: { message: string } | null }>,
+    fn: () => PromiseLike<{ error: { message: string } | null }>,
     onSuccess?: () => void
   ) {
     setDecisionSubmitting(true);
@@ -275,9 +275,10 @@ export function CaseWorkspace({
   }
 
   const additionalPhotos = photos.filter((p) => p.category === "other");
-  const totalPhotos = photos.length;
+  const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
+  const rcBookPhoto = photos.find(p => p.category === "rc_book");
   const requiredFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
-  const canSubmit = requiredFilled && totalPhotos >= 6 && !submitting;
+  const canSubmit = requiredFilled && totalPhotos >= 6 && !!rcBookPhoto && !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -501,6 +502,21 @@ export function CaseWorkspace({
         </div>
       </Card>
 
+      <Card>
+        <CardTitle>RC Book Photo <span className="text-red-500">*</span></CardTitle>
+        <div className="max-w-sm">
+          <PhotoSlot
+            label="Registration certificate"
+            photo={rcBookPhoto}
+            disabled={!isDraft || !!uploadingCategory || submitting}
+            uploading={uploadingCategory === "rc_book"}
+            onSelect={(file) => handleFileSelect(file, "rc_book")}
+            onRemove={rcBookPhoto && isDraft && !uploadingCategory && !submitting ? () => removePhoto(rcBookPhoto) : undefined}
+          />
+        </div>
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Required before evaluation. Image only, up to 5MB. Private to authorized staff.</p>
+      </Card>
+
       {initialCase.status === "pending_customer_decision" && offer && (
         <Card>
           <CardTitle>Nippon&apos;s Offer</CardTitle>
@@ -657,7 +673,7 @@ export function CaseWorkspace({
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title={!canSubmit ? "Fill all required fields and upload at least 6 photos" : undefined}
+            title={!canSubmit ? "Upload the RC book photo and at least 6 vehicle photos, including all required angles" : undefined}
           >
             {submitting ? "Submitting..." : "Submit for Evaluation"}
           </Button>
@@ -722,19 +738,18 @@ function PhotoSlot({
   onSelect: (file: File) => void;
   onRemove?: () => void;
 }) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [thumbnail, setThumbnail] = useState<{ id: string; url: string } | null>(null);
+  const thumbUrl = thumbnail?.id === photo?.id ? thumbnail?.url : null;
 
   useEffect(() => {
-    if (!photo) {
-      setThumbUrl(null);
-      return;
-    }
+    if (!photo) return;
     let cancelled = false;
     fetch(`/api/photos/${photo.id}/signed-url`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled && data?.url) setThumbUrl(data.url);
-      });
+        if (!cancelled && data?.url) setThumbnail({ id: photo.id, url: data.url });
+      })
+      .catch(() => { if (!cancelled) setThumbnail(null); });
     return () => {
       cancelled = true;
     };
