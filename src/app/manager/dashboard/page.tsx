@@ -122,8 +122,8 @@ export default async function ManagerDashboardPage() {
     return sum + (offer?.offer_price ?? 0);
   }, 0);
 
-  const isFullManager = profile?.role === "manager";
-  const { data: brokerData, error: brokerError } = isFullManager
+  const isClusterManager = profile?.role === "cluster_manager";
+  const { data: brokerData, error: brokerError } = isClusterManager
     ? await supabase.rpc("broker_report", {})
     : { data: null, error: null };
   const brokerReport = brokerData as unknown as BrokerReport | null;
@@ -181,9 +181,9 @@ export default async function ManagerDashboardPage() {
           href="/manager/cases"
         />
       </div>
-      {isFullManager && brokerError && <BrokerLoadError error={brokerError} />}
+      {isClusterManager && brokerError && <BrokerLoadError error={brokerError} />}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
-        {isFullManager && (
+        {isClusterManager && (
           <>
             <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
             <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />

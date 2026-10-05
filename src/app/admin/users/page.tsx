@@ -13,7 +13,6 @@ const inputClass =
 const ROLE_LABELS: Record<string, string> = {
   sales_officer: "Sales Officer",
   purchase_officer: "Purchase Officer",
-  manager: "Manager",
   sales_manager: "Sales Manager",
   cluster_manager: "Cluster Manager",
   po_manager: "PO Manager",
@@ -30,7 +29,7 @@ export default async function AdminUsersPage({
 
   let query = supabase
     .from("profiles")
-    .select("id, employee_id, full_name, role, is_active, is_group_manager, branches(name), clusters(name)")
+    .select("id, employee_id, full_name, role, is_active, branches(name), clusters(name)")
     .order("full_name");
 
   if (role) query = query.eq("role", role as Enums<"app_role">);
@@ -119,7 +118,6 @@ export default async function AdminUsersPage({
                     <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">Role</dt>
                     <dd className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">
                       {ROLE_LABELS[u.role]}
-                      {u.role === "manager" && u.is_group_manager ? " (Group)" : ""}
                     </dd>
                   </div>
                   <div>
@@ -155,7 +153,6 @@ export default async function AdminUsersPage({
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{u.full_name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                       {ROLE_LABELS[u.role]}
-                      {u.role === "manager" && u.is_group_manager ? " (Group)" : ""}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                       {u.branches?.name ?? u.clusters?.name ?? "All branches"}

@@ -45,7 +45,6 @@ export default async function EditAccountPage({ params }: { params: Promise<{ id
           role: target.role,
           branchId: target.branch_id,
           clusterId: target.cluster_id,
-          isGroupManager: target.is_group_manager,
         }}
       />
 

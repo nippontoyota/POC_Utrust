@@ -5,14 +5,13 @@ import type { Database } from "@/lib/supabase/database.types";
 const ROLE_HOME: Record<string, string> = {
   sales_officer: "/so/dashboard",
   purchase_officer: "/po/dashboard",
-  manager: "/manager/dashboard",
   sales_manager: "/manager/dashboard",
   cluster_manager: "/manager/dashboard",
   po_manager: "/manager/dashboard",
   admin: "/admin/dashboard",
 };
 
-const MANAGER_ROLES = new Set(["manager", "sales_manager", "cluster_manager", "po_manager"]);
+const MANAGER_ROLES = new Set(["sales_manager", "cluster_manager", "po_manager"]);
 
 const PUBLIC_PATHS = ["/login", "/signup", "/broker-signup", "/auth/callback"];
 

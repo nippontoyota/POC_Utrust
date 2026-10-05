@@ -37,11 +37,11 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order through `supabase/migrations/0023_admin_management.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles; `0022`-`0023` add the Admin role (see "Manager Sub-Types" and "Admin Role" below).
+1. Apply migrations in numeric order through `supabase/migrations/0024_remove_manager_role.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles; `0022`-`0023` add the Admin role; `0024` removes the original `manager` role entirely, now that Sales/Cluster/PO Manager cover every case it did (see "Manager Sub-Types" and "Admin Role" below).
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
-3. An **Admin** approves applications under **Brokers**. Managers (branch or group) have read-only Broker Performance reporting only and cannot approve, reject, or suspend brokers. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
+3. An **Admin** approves applications under **Brokers**. Managers have read-only Broker Performance reporting only (Cluster Manager, since `0024`) and cannot approve, reject, or suspend brokers. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
 4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
-5. Verify one complete flow with SO, PO, broker, branch-manager, and group-manager accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
+5. Verify one complete flow with SO, PO, broker, Sales Manager, and Cluster Manager accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
 
 Required `.env.local` entries: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and server-only `SUPABASE_SERVICE_ROLE_KEY`. If Turbopack cannot start its worker, use `npm run dev -- --webpack` and `npm run build -- --webpack`.
 
@@ -59,31 +59,30 @@ order by start_time desc limit 10;
 
 ## Manager Sub-Types
 
-Three additional, strictly read-only roles sit alongside the original `manager` role (which is untouched and keeps working exactly as before):
+There is no generic `manager` role — it was removed in migration `0024` once these three covered everything it did. No profile ever had `role = 'manager'` at the time of removal, so this was a clean cutover with no data to migrate:
 
 - **Sales Manager** (`sales_manager`) — one branch, full case detail (customer info, SO work, PO price/notes, broker status) for that branch only.
-- **Cluster Manager** (`cluster_manager`) — every branch in one cluster, same full detail, just wider. `clusters` is a new table; every branch belongs to exactly one cluster (`branches.cluster_id`).
+- **Cluster Manager** (`cluster_manager`) — every branch in one cluster, same full detail, just wider. `clusters` is a new table; every branch belongs to exactly one cluster (`branches.cluster_id`). Cluster Manager is also the only one of the three with read-only **Broker Performance** reporting (`/manager/marketplace`, backed by `broker_report()`, scoped to that manager's own cluster) — the old `manager` role's one exclusive capability, moved here rather than dropped.
 - **PO Manager** (`po_manager`) — one company-wide account overseeing every Purchase Officer. Sees assigned PO, inspection status, offer price, and turnaround for every case, across every branch, but **never** the customer's name or mobile number. Enforced at the database level: `po_manager` is deliberately excluded from the `cases`/`profiles` row-level security policies and can only read case data through three purpose-built functions (`po_manager_summary`, `po_manager_cases`, `po_manager_case`) that never select those two columns. It does have normal read access to `case_photos`/`case_offers`/`case_events`, none of which contain customer contact info.
 
-None of the three get any write/action capability anywhere, and none get the separate Broker Performance / Broker Access screens (those stay exactly as they are, gated on the original `manager` role's `is_group_manager` flag, pending a future dedicated admin section).
+None of the three get any write/action capability anywhere.
 
-All three are owner-provisioned only via `scripts/seed-manager.mjs`, same as the original manager role:
+All three are owner-provisioned only via `scripts/seed-manager.mjs`:
 
 ```bash
-node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]
 node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>
 node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>
 node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
 ```
 
-The `/manager/*` pages are shared across all four manager sub-types — the database scopes what each one sees automatically via row-level security, so there is no separate page tree per role. `po_manager`'s pages take a different, RPC-based data path (see above) since it's the one role that needs column-level restriction, not just row-level.
+The `/manager/*` pages are shared across all three manager sub-types — the database scopes what each one sees automatically via row-level security, so there is no separate page tree per role. `po_manager`'s pages take a different, RPC-based data path (see above) since it's the one role that needs column-level restriction, not just row-level.
 
 ## Admin Role
 
 A separate `admin` role (`/admin/*`) owns account and broker administration, strictly apart from case/business data (which stays with the Manager family):
 
 - **Users** (`/admin/users`) — every staff account (SO, PO, and the whole Manager family). Admin can create new accounts, edit an existing one (including reassigning role/branch/cluster), activate/deactivate, and reset a password. There is no hard delete — deactivating keeps the account's case/offer history intact and attributed to them, matching how the rest of the system treats history. An admin cannot deactivate their own account.
-- **Brokers** (`/admin/brokers`) — approve, reject, suspend, and reactivate broker applications (moved here from the Manager role's old `is_group_manager`-gated "Broker Access" screen, which no longer exists). Managers keep read-only Broker Performance reporting only.
+- **Brokers** (`/admin/brokers`) — approve, reject, suspend, and reactivate broker applications (moved here from the Manager role's old `is_group_manager`-gated "Broker Access" screen, which no longer exists — `is_group_manager` itself was dropped from `profiles` in `0024`, along with the role it existed for). Managers keep read-only Broker Performance reporting only (Cluster Manager, as of `0024`).
 - **Dashboard** (`/admin/dashboard`) — staff counts by role, active/inactive counts, broker counts by status. No case or customer data appears anywhere under `/admin`.
 
 Two different implementation paths, worth knowing about:
@@ -109,7 +108,7 @@ From there, that Admin account can create every other account (including additio
 - SO selects an offer, with a reason required for choosing a lower price. Selection snapshots the amount and starts an exclusive 48 elapsed hours, including weekends. Offers are frozen during the hold.
 - Customer acceptance belongs to the reservation and does not extend it. SO confirms payment and handover before the deadline to close the broker deal.
 - Rejection, release, or expiry reopens bidding and requires earlier current/selected offers to be reconfirmed. Customer consent withdrawal delists the case. Suspension denies access, withdraws offers, and releases active holds; reactivation never resurrects them.
-- Managers inspect branch-scoped histories and reports; group managers see all branches. Account decisions and case actions have database audit records.
+- Sales Managers inspect their own branch's history; Cluster Managers see every branch in their cluster, including broker performance reporting. Account decisions and case actions have database audit records.
 
 `broker_offers` keeps one current record per broker/case, with revisions recorded in `case_events`. `broker_reservations` keeps every price snapshot and outcome. Protected writes use RPCs; clients cannot directly update workflow tables or privileged metadata. `broker_marketplace` returns an explicit field allowlist instead of exposing `cases` to brokers.
 
@@ -141,6 +140,8 @@ Coverage includes privacy/RLS, photo review, scoped reports, approval/suspension
 ## Persistent Vehicle Journey Tests
 
 `scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, branch managers, a group manager, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
+
+**Stale as of `0024`:** this script (and `scripts/test-broker-db.mjs`) still provisions and exercises the old generic `manager`/"group manager" role, which no longer exists in the `app_role` enum — both will fail until rewritten against Sales Manager / Cluster Manager instead.
 
 The default run is `QA20261003A`. In **Manager > All Cases**, search for that marker, or open `/manager/cases?q=QA20261003A`. Case detail shows the saved activity log, acting roles, decision reasons, prices, and broker reservation history. SO and PO accounts see their own branch assignments; brokers see their own bids and reservations.
 

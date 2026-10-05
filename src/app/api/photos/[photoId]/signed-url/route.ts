@@ -40,7 +40,7 @@ export async function GET(
   }
 
   const [{ data: profile }, { data: broker }] = await Promise.all([
-    service.from("profiles").select("role, branch_id, is_group_manager, is_active").eq("id", user.id).maybeSingle(),
+    service.from("profiles").select("role, branch_id, cluster_id, is_active").eq("id", user.id).maybeSingle(),
     service.from("brokers").select("status, suspended_at").eq("id", user.id).maybeSingle(),
   ]);
 
@@ -49,8 +49,11 @@ export async function GET(
   if (profile?.is_active) {
     if (profile.role === "sales_officer" && caseRow.sales_officer_id === user.id) authorized = true;
     if (profile.role === "purchase_officer" && caseRow.assigned_po_id === user.id) authorized = true;
-    if (profile.role === "manager" && (profile.is_group_manager || profile.branch_id === caseRow.branch_id)) {
-      authorized = true;
+    if (profile.role === "sales_manager" && profile.branch_id === caseRow.branch_id) authorized = true;
+    if (profile.role === "po_manager" && caseRow.assigned_po_id !== null) authorized = true;
+    if (profile.role === "cluster_manager") {
+      const { data: branch } = await service.from("branches").select("cluster_id").eq("id", caseRow.branch_id).single();
+      if (branch?.cluster_id === profile.cluster_id) authorized = true;
     }
   } else if (!profile && broker && broker.status === "approved" && !broker.suspended_at) {
     // Brokers only ever see plate-hidden photos on listed cases -- never the

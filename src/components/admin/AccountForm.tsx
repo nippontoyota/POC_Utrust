@@ -14,14 +14,13 @@ type Cluster = { id: string; name: string };
 const ROLE_OPTIONS: { value: Enums<"app_role">; label: string }[] = [
   { value: "sales_officer", label: "Sales Officer" },
   { value: "purchase_officer", label: "Purchase Officer" },
-  { value: "manager", label: "Manager" },
   { value: "sales_manager", label: "Sales Manager" },
   { value: "cluster_manager", label: "Cluster Manager" },
   { value: "po_manager", label: "PO Manager" },
   { value: "admin", label: "Admin" },
 ];
 
-const BRANCH_ROLES = new Set(["sales_officer", "purchase_officer", "sales_manager", "manager"]);
+const BRANCH_ROLES = new Set(["sales_officer", "purchase_officer", "sales_manager"]);
 
 export function AccountForm({
   mode,
@@ -39,7 +38,6 @@ export function AccountForm({
     role: Enums<"app_role">;
     branchId: string | null;
     clusterId: string | null;
-    isGroupManager: boolean;
   };
 }) {
   const router = useRouter();
@@ -50,7 +48,6 @@ export function AccountForm({
   const [role, setRole] = useState<Enums<"app_role">>(initial?.role ?? "sales_officer");
   const [branchId, setBranchId] = useState(initial?.branchId ?? branches[0]?.id ?? "");
   const [clusterId, setClusterId] = useState(initial?.clusterId ?? clusters[0]?.id ?? "");
-  const [isGroupManager, setIsGroupManager] = useState(initial?.isGroupManager ?? false);
   const [password, setPassword] = useState("");
 
   const needsBranch = BRANCH_ROLES.has(role);
@@ -66,7 +63,6 @@ export function AccountForm({
         role,
         branchId: needsBranch ? branchId : null,
         clusterId: needsCluster ? clusterId : null,
-        isGroupManager,
         password,
       });
       if (ok) router.push("/admin/users");
@@ -76,7 +72,6 @@ export function AccountForm({
         p_role: role,
         p_branch_id: needsBranch ? branchId : null,
         p_cluster_id: needsCluster ? clusterId : null,
-        p_is_group_manager: isGroupManager,
         p_full_name: fullName,
       });
     }
@@ -134,13 +129,6 @@ export function AccountForm({
             ))}
           </select>
         </FormField>
-      )}
-
-      {role === "manager" && (
-        <label className="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-          <input type="checkbox" checked={isGroupManager} onChange={(e) => setIsGroupManager(e.target.checked)} />
-          Group Manager (sees every branch)
-        </label>
       )}
 
       {mode === "create" && (

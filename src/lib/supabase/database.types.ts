@@ -491,7 +491,6 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
-          is_group_manager: boolean
           last_assigned_at: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
@@ -503,7 +502,6 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean
-          is_group_manager?: boolean
           last_assigned_at?: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
@@ -515,7 +513,6 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
-          is_group_manager?: boolean
           last_assigned_at?: string | null
           role?: Database["public"]["Enums"]["app_role"]
         }
@@ -543,7 +540,6 @@ export type Database = {
     Functions: MarketplaceFunctions & ManagerFunctions & {
       current_profile_branch: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_cluster: { Args: Record<PropertyKey, never>; Returns: string }
-      current_profile_is_group_manager: { Args: Record<PropertyKey, never>; Returns: boolean }
       current_profile_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["app_role"]
@@ -561,7 +557,6 @@ export type Database = {
           p_role: Database["public"]["Enums"]["app_role"]
           p_branch_id?: string | null
           p_cluster_id?: string | null
-          p_is_group_manager?: boolean
           p_full_name?: string | null
         }
         Returns: undefined
@@ -612,7 +607,6 @@ export type Database = {
       app_role:
         | "sales_officer"
         | "purchase_officer"
-        | "manager"
         | "sales_manager"
         | "cluster_manager"
         | "po_manager"

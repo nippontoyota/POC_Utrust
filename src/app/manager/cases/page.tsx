@@ -27,7 +27,7 @@ export default async function ManagerCasesPage({
     data: { user },
   } = await supabase.auth.getUser();
   const { data: profile } = await supabase.from("profiles").select("role, cluster_id").eq("id", user!.id).single();
-  const role = profile?.role ?? "manager";
+  const role = profile?.role ?? "sales_manager";
 
   if (role === "po_manager") {
     const page = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);

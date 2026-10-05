@@ -3,14 +3,12 @@
 // for any of them, by design (see the plan: managers are owner-provisioned only).
 //
 // Usage:
-//   node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]
 //   node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>
 //   node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>
 //   node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
 //   node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>
 //
 // Examples:
-//   node scripts/seed-manager.mjs manager MGR001 "Anu Manager" CO01A managerpass123 --group
 //   node scripts/seed-manager.mjs sales_manager SM001 "Ravi Nair" CO01A salesmgr123
 //   node scripts/seed-manager.mjs cluster_manager CM001 "Deepa Menon" Cochin clustermgr123
 //   node scripts/seed-manager.mjs po_manager POM001 "Arjun Das" pomgr123
@@ -22,7 +20,7 @@ import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROLES = ["manager", "sales_manager", "cluster_manager", "po_manager", "admin"];
+const ROLES = ["sales_manager", "cluster_manager", "po_manager", "admin"];
 const NO_SCOPE_ROLES = ["po_manager", "admin"];
 
 function loadEnvLocal() {
@@ -42,7 +40,6 @@ function loadEnvLocal() {
 function usageError(message) {
   console.error(message);
   console.error("Usage:");
-  console.error("  node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]");
   console.error("  node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>");
   console.error("  node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>");
   console.error("  node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>");
@@ -59,11 +56,9 @@ if (!employeeId || !fullName) {
   usageError("Missing employeeId or fullName.");
 }
 
-let scopeArg, password, groupFlag;
+let scopeArg, password;
 if (NO_SCOPE_ROLES.includes(role)) {
   [password] = rest;
-} else if (role === "manager") {
-  [scopeArg, password, groupFlag] = rest;
 } else {
   [scopeArg, password] = rest;
 }
@@ -88,10 +83,9 @@ const profileRow = {
   role,
   branch_id: null,
   cluster_id: null,
-  is_group_manager: role === "manager" && groupFlag === "--group",
 };
 
-if (role === "manager" || role === "sales_manager") {
+if (role === "sales_manager") {
   const { data: branch, error: branchError } = await supabase
     .from("branches")
     .select("id")
@@ -138,4 +132,4 @@ if (profileError) {
   process.exit(1);
 }
 
-console.log(`${role} account created: ${employeeId} / (password as given)${scopeArg ? `, scope: ${scopeArg}` : ""}${profileRow.is_group_manager ? ", group manager: true" : ""}`);
+console.log(`${role} account created: ${employeeId} / (password as given)${scopeArg ? `, scope: ${scopeArg}` : ""}`);

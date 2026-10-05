@@ -18,27 +18,18 @@ export default async function ManagerLayout({
   } = await supabase.auth.getUser();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name, is_group_manager, branches(name), clusters(name)")
+    .select("role, full_name, branches(name), clusters(name)")
     .eq("id", user!.id)
     .single();
 
-  const role = profile?.role ?? "manager";
-  const roleLabel =
-    role === "manager"
-      ? profile?.is_group_manager
-        ? "Manager (all branches)"
-        : "Manager"
-      : (ROLE_LABELS[role] ?? "Manager");
+  const role = profile?.role ?? "sales_manager";
+  const roleLabel = ROLE_LABELS[role] ?? role;
   const subtitle =
     role === "sales_manager"
       ? profile?.branches?.name
       : role === "cluster_manager"
         ? profile?.clusters?.name
-        : role === "po_manager"
-          ? "All branches"
-          : profile?.is_group_manager
-            ? undefined
-            : profile?.branches?.name;
+        : "All branches";
 
   return (
     <AppShell
@@ -48,7 +39,7 @@ export default async function ManagerLayout({
       links={[
         { href: "/manager/dashboard", label: "Dashboard", icon: "dashboard" },
         { href: "/manager/cases", label: "All Cases", icon: "cases" },
-        ...(role === "manager"
+        ...(role === "cluster_manager"
           ? [
               {
                 href: "/manager/marketplace",

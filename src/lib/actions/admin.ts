@@ -30,7 +30,6 @@ export async function adminCreateAccount(input: {
   role: Enums<"app_role">;
   branchId?: string | null;
   clusterId?: string | null;
-  isGroupManager?: boolean;
   password: string;
 }): Promise<{ error?: string }> {
   const adminId = await requireActiveAdminId();
@@ -65,7 +64,6 @@ export async function adminCreateAccount(input: {
     role: input.role,
     branch_id: input.branchId ?? null,
     cluster_id: input.clusterId ?? null,
-    is_group_manager: input.role === "manager" ? !!input.isGroupManager : false,
   });
 
   if (profileError) {
