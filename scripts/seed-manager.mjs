@@ -1,12 +1,18 @@
-// Site-owner tool: creates a Manager account directly. This is the only path
-// that can ever produce a Manager -- there is no in-app signup for it, by
-// design (see the plan: Manager is owner-provisioned only).
+// Site-owner tool: creates a Manager-family account directly. This is the only
+// path that can ever produce one of these roles -- there is no in-app signup
+// for any of them, by design (see the plan: managers are owner-provisioned only).
 //
 // Usage:
-//   node scripts/seed-manager.mjs <employeeId> <fullName> <branchCode> <password> [--group]
+//   node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]
+//   node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>
+//   node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>
+//   node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
 //
-// Example:
-//   node scripts/seed-manager.mjs MGR001 "Anu Manager" CO01A managerpass123 --group
+// Examples:
+//   node scripts/seed-manager.mjs manager MGR001 "Anu Manager" CO01A managerpass123 --group
+//   node scripts/seed-manager.mjs sales_manager SM001 "Ravi Nair" CO01A salesmgr123
+//   node scripts/seed-manager.mjs cluster_manager CM001 "Deepa Menon" Cochin clustermgr123
+//   node scripts/seed-manager.mjs po_manager POM001 "Arjun Das" pomgr123
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,6 +20,7 @@ import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROLES = ["manager", "sales_manager", "cluster_manager", "po_manager"];
 
 function loadEnvLocal() {
   const envPath = join(__dirname, "..", ".env.local");
@@ -29,29 +36,81 @@ function loadEnvLocal() {
   return env;
 }
 
-const env = loadEnvLocal();
-const [employeeId, fullName, branchCode, password, groupFlag] = process.argv.slice(2);
-
-if (!employeeId || !fullName || !branchCode || !password) {
-  console.error("Usage: node scripts/seed-manager.mjs <employeeId> <fullName> <branchCode> <password> [--group]");
+function usageError(message) {
+  console.error(message);
+  console.error("Usage:");
+  console.error("  node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]");
+  console.error("  node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>");
+  console.error("  node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>");
+  console.error("  node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>");
   process.exit(1);
 }
 
+const [role, employeeId, fullName, ...rest] = process.argv.slice(2);
+
+if (!ROLES.includes(role)) {
+  usageError(`First argument must be one of: ${ROLES.join(", ")}`);
+}
+if (!employeeId || !fullName) {
+  usageError("Missing employeeId or fullName.");
+}
+
+let scopeArg, password, groupFlag;
+if (role === "po_manager") {
+  [password] = rest;
+} else if (role === "manager") {
+  [scopeArg, password, groupFlag] = rest;
+} else {
+  [scopeArg, password] = rest;
+}
+
+if (!password) {
+  usageError("Missing password.");
+}
+if (role !== "po_manager" && !scopeArg) {
+  usageError(role === "cluster_manager" ? "Missing cluster name." : "Missing branch code.");
+}
+
+const env = loadEnvLocal();
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
 const authEmail = `${employeeId.trim().toLowerCase().replace(/[^a-z0-9]/g, "")}@staff.utrustpoc.com`;
 
-const { data: branch, error: branchError } = await supabase
-  .from("branches")
-  .select("id")
-  .eq("code", branchCode)
-  .single();
+const profileRow = {
+  employee_id: employeeId.trim(),
+  full_name: fullName.trim(),
+  role,
+  branch_id: null,
+  cluster_id: null,
+  is_group_manager: role === "manager" && groupFlag === "--group",
+};
 
-if (branchError || !branch) {
-  console.error(`Branch code "${branchCode}" not found:`, branchError?.message);
-  process.exit(1);
+if (role === "manager" || role === "sales_manager") {
+  const { data: branch, error: branchError } = await supabase
+    .from("branches")
+    .select("id")
+    .eq("code", scopeArg)
+    .single();
+
+  if (branchError || !branch) {
+    console.error(`Branch code "${scopeArg}" not found:`, branchError?.message);
+    process.exit(1);
+  }
+  profileRow.branch_id = branch.id;
+} else if (role === "cluster_manager") {
+  const { data: cluster, error: clusterError } = await supabase
+    .from("clusters")
+    .select("id")
+    .ilike("name", scopeArg)
+    .single();
+
+  if (clusterError || !cluster) {
+    console.error(`Cluster "${scopeArg}" not found:`, clusterError?.message);
+    process.exit(1);
+  }
+  profileRow.cluster_id = cluster.id;
 }
 
 const { data: created, error: createError } = await supabase.auth.admin.createUser({
@@ -67,11 +126,7 @@ if (createError || !created.user) {
 
 const { error: profileError } = await supabase.from("profiles").insert({
   id: created.user.id,
-  employee_id: employeeId.trim(),
-  full_name: fullName.trim(),
-  role: "manager",
-  branch_id: branch.id,
-  is_group_manager: groupFlag === "--group",
+  ...profileRow,
 });
 
 if (profileError) {
@@ -79,4 +134,4 @@ if (profileError) {
   process.exit(1);
 }
 
-console.log(`Manager account created: ${employeeId} / (password as given), branch ${branchCode}, group manager: ${groupFlag === "--group"}`);
+console.log(`${role} account created: ${employeeId} / (password as given)${scopeArg ? `, scope: ${scopeArg}` : ""}${profileRow.is_group_manager ? ", group manager: true" : ""}`);

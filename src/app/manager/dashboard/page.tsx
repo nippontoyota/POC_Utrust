@@ -9,6 +9,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { Enums } from "@/lib/supabase/database.types";
 import type { BrokerReport } from "@/lib/broker";
+import type { PoManagerSummary } from "@/lib/poManager";
 import { AutoRefresh } from "@/components/broker/Refresh";
 import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 
@@ -16,6 +17,90 @@ type CaseStatus = Enums<"case_status">;
 
 export default async function ManagerDashboardPage() {
   const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+
+  if (profile?.role === "po_manager") {
+    const { data, error } = await supabase.rpc("po_manager_summary", {});
+    const summary = data as unknown as PoManagerSummary | null;
+    const overdueByPo = new Map<string, number>();
+    let overdueCount = 0;
+    for (const c of summary?.pending_cases ?? []) {
+      if (isOverdue(c.submitted_at, 2)) {
+        overdueCount += 1;
+        overdueByPo.set(c.po_id, (overdueByPo.get(c.po_id) ?? 0) + 1);
+      }
+    }
+
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="PO oversight"
+          title="Dashboard"
+          description="Track every Purchase Officer's workload, pending evaluations, and turnaround across all branches."
+        />
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            Could not load summary: {error.message}
+          </p>
+        )}
+
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
+          <StatCard label="Total assigned cases" value={summary?.total_cases ?? 0} icon={LayoutList} href="/manager/cases" />
+          <StatCard
+            label="Awaiting evaluation"
+            value={summary?.pending_cases.length ?? 0}
+            icon={Timer}
+            href="/manager/cases?status=pending_evaluation"
+          />
+          <StatCard
+            label="Overdue (>2 business days)"
+            value={overdueCount}
+            tone={overdueCount > 0 ? "danger" : "default"}
+            icon={AlertTriangle}
+            href="/manager/cases?status=pending_evaluation"
+          />
+          <StatCard label="Evaluated to date" value={summary?.evaluated_total ?? 0} icon={CheckCircle2} />
+        </div>
+
+        <Card className="space-y-3">
+          <CardTitle>Purchase Officers</CardTitle>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] text-left text-sm">
+              <thead className="border-b border-[var(--line)] text-xs font-black uppercase text-[var(--muted)]">
+                <tr>
+                  {["PO", "Branch", "Assigned", "Pending", "Overdue", "Evaluated"].map((t) => (
+                    <th key={t} className="px-2 py-3 font-medium">
+                      {t}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {summary?.pos.map((po) => (
+                  <tr key={po.id} className="border-b border-zinc-100 dark:border-zinc-800">
+                    <td className="px-2 py-3">
+                      {po.name} <span className="text-xs text-zinc-500">({po.employee_id})</span>
+                      {!po.is_active && <span className="ml-1 text-xs text-red-600 dark:text-red-400">inactive</span>}
+                    </td>
+                    <td className="px-2 py-3 text-zinc-700 dark:text-zinc-300">{po.branch_name}</td>
+                    <td className="px-2 py-3 tabular-nums">{po.assigned_total}</td>
+                    <td className="px-2 py-3 tabular-nums">{po.pending}</td>
+                    <td className="px-2 py-3 tabular-nums">{overdueByPo.get(po.id) ?? 0}</td>
+                    <td className="px-2 py-3 tabular-nums">{po.evaluated}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!summary?.pos.length && <p className="text-sm text-zinc-500 dark:text-zinc-400">No Purchase Officers found.</p>}
+        </Card>
+      </div>
+    );
+  }
 
   const { data: cases } = await supabase
     .from("cases")
@@ -37,7 +122,10 @@ export default async function ManagerDashboardPage() {
     return sum + (offer?.offer_price ?? 0);
   }, 0);
 
-  const { data: brokerData, error: brokerError } = await supabase.rpc("broker_report", {});
+  const isFullManager = profile?.role === "manager";
+  const { data: brokerData, error: brokerError } = isFullManager
+    ? await supabase.rpc("broker_report", {})
+    : { data: null, error: null };
   const brokerReport = brokerData as unknown as BrokerReport | null;
   const evaluationTurnarounds = rows.flatMap(c => {
     const offer = Array.isArray(c.case_offers) ? c.case_offers[0] : c.case_offers;
@@ -93,11 +181,15 @@ export default async function ManagerDashboardPage() {
           href="/manager/cases"
         />
       </div>
-      {brokerError && <BrokerLoadError error={brokerError} />}
+      {isFullManager && brokerError && <BrokerLoadError error={brokerError} />}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
-        <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
-        <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />
-        <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
+        {isFullManager && (
+          <>
+            <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
+            <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />
+            <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
+          </>
+        )}
         <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} href="/manager/cases?status=pending_customer_decision" />
       </div>
 

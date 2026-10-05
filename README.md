@@ -37,7 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order through `supabase/migrations/0016_case_color_optional_expected_price.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission.
+1. Apply migrations in numeric order through `supabase/migrations/0020_po_manager_cases_access_fix.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017`-`0020` add the Sales Manager / Cluster Manager / PO Manager roles (see "Manager Sub-Types" below).
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
 3. A group manager approves applications under **Broker Access**. Branch managers have scoped reporting but cannot approve or suspend marketplace accounts. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
 4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
@@ -56,6 +56,27 @@ select status, return_message, start_time from cron.job_run_details
 where jobid in (select jobid from cron.job where jobname = 'expire-broker-reservations')
 order by start_time desc limit 10;
 ```
+
+## Manager Sub-Types
+
+Three additional, strictly read-only roles sit alongside the original `manager` role (which is untouched and keeps working exactly as before):
+
+- **Sales Manager** (`sales_manager`) — one branch, full case detail (customer info, SO work, PO price/notes, broker status) for that branch only.
+- **Cluster Manager** (`cluster_manager`) — every branch in one cluster, same full detail, just wider. `clusters` is a new table; every branch belongs to exactly one cluster (`branches.cluster_id`).
+- **PO Manager** (`po_manager`) — one company-wide account overseeing every Purchase Officer. Sees assigned PO, inspection status, offer price, and turnaround for every case, across every branch, but **never** the customer's name or mobile number. Enforced at the database level: `po_manager` is deliberately excluded from the `cases`/`profiles` row-level security policies and can only read case data through three purpose-built functions (`po_manager_summary`, `po_manager_cases`, `po_manager_case`) that never select those two columns. It does have normal read access to `case_photos`/`case_offers`/`case_events`, none of which contain customer contact info.
+
+None of the three get any write/action capability anywhere, and none get the separate Broker Performance / Broker Access screens (those stay exactly as they are, gated on the original `manager` role's `is_group_manager` flag, pending a future dedicated admin section).
+
+All three are owner-provisioned only via `scripts/seed-manager.mjs`, same as the original manager role:
+
+```bash
+node scripts/seed-manager.mjs manager <employeeId> <fullName> <branchCode> <password> [--group]
+node scripts/seed-manager.mjs sales_manager <employeeId> <fullName> <branchCode> <password>
+node scripts/seed-manager.mjs cluster_manager <employeeId> <fullName> <clusterName> <password>
+node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
+```
+
+The `/manager/*` pages are shared across all four manager sub-types — the database scopes what each one sees automatically via row-level security, so there is no separate page tree per role. `po_manager`'s pages take a different, RPC-based data path (see above) since it's the one role that needs column-level restriction, not just row-level.
 
 ## Broker Workflow and Access
 

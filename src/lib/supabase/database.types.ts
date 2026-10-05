@@ -1,4 +1,5 @@
 import type { MarketplaceFunctions } from "@/lib/broker";
+import type { ManagerFunctions } from "@/lib/poManager";
 
 export type Json =
   | string
@@ -16,6 +17,7 @@ export type Database = {
     Tables: {
       branches: {
         Row: {
+          cluster_id: string
           code: string
           created_at: string
           display_order: number
@@ -23,6 +25,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          cluster_id: string
           code: string
           created_at?: string
           display_order?: number
@@ -30,7 +33,37 @@ export type Database = {
           name: string
         }
         Update: {
+          cluster_id?: string
           code?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "clusters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clusters: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order: number
+          id?: string
+          name: string
+        }
+        Update: {
           created_at?: string
           display_order?: number
           id?: string
@@ -401,7 +434,8 @@ export type Database = {
       }
       profiles: {
         Row: {
-          branch_id: string
+          branch_id: string | null
+          cluster_id: string | null
           created_at: string
           employee_id: string
           full_name: string
@@ -412,7 +446,8 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
-          branch_id: string
+          branch_id?: string | null
+          cluster_id?: string | null
           created_at?: string
           employee_id: string
           full_name: string
@@ -423,7 +458,8 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }
         Update: {
-          branch_id?: string
+          branch_id?: string | null
+          cluster_id?: string | null
           created_at?: string
           employee_id?: string
           full_name?: string
@@ -441,14 +477,22 @@ export type Database = {
             referencedRelation: "branches"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "clusters"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
       [_ in never]: never
     }
-    Functions: MarketplaceFunctions & {
+    Functions: MarketplaceFunctions & ManagerFunctions & {
       current_profile_branch: { Args: Record<PropertyKey, never>; Returns: string }
+      current_profile_cluster: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_is_group_manager: { Args: Record<PropertyKey, never>; Returns: boolean }
       current_profile_role: {
         Args: Record<PropertyKey, never>
@@ -490,7 +534,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "sales_officer" | "purchase_officer" | "manager"
+      app_role:
+        | "sales_officer"
+        | "purchase_officer"
+        | "manager"
+        | "sales_manager"
+        | "cluster_manager"
+        | "po_manager"
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"

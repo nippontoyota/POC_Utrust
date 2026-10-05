@@ -17,7 +17,7 @@ export async function createDraftCase() {
     .eq("id", user.id)
     .single();
 
-  if (!profile) redirect("/login");
+  if (!profile || !profile.branch_id) redirect("/login");
 
   const { data: newCase, error } = await supabase
     .from("cases")
