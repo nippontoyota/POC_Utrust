@@ -15,12 +15,16 @@ const ROLE_HOME: Record<string, string> = {
 const MANAGER_ROLES = new Set(["manager", "sales_manager", "cluster_manager", "po_manager"]);
 
 const PUBLIC_PATHS = ["/login", "/signup", "/broker-signup", "/auth/callback"];
-const STAFF_PATH_ROLES: Record<string, keyof typeof ROLE_HOME> = {
-  "/admin": "manager",
-  "/manager": "manager",
-  "/po": "purchase_officer",
-  "/so": "sales_officer",
-};
+const STAFF_PATHS = ["/admin", "/manager", "/po", "/so"];
+
+function ownsStaffPath(role: string, pathname: string) {
+  return (
+    (role === "admin" && pathname.startsWith("/admin")) ||
+    (MANAGER_ROLES.has(role) && pathname.startsWith("/manager")) ||
+    (role === "purchase_officer" && pathname.startsWith("/po")) ||
+    (role === "sales_officer" && pathname.startsWith("/so"))
+  );
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -60,18 +64,16 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/api")) return response;
 
-  const staffRole = Object.entries(STAFF_PATH_ROLES).find(([path]) =>
-    pathname.startsWith(path)
-  )?.[1];
+  const isStaffPath = STAFF_PATHS.some((path) => pathname.startsWith(path));
 
-  if (staffRole) {
+  if (isStaffPath) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profile?.role === staffRole) return response;
+    if (profile && ownsStaffPath(profile.role, pathname)) return response;
     return NextResponse.redirect(
       new URL(profile ? ROLE_HOME[profile.role] : "/signup", request.url)
     );
@@ -96,11 +98,7 @@ export async function proxy(request: NextRequest) {
 
   if (profile) {
     const home = ROLE_HOME[profile.role];
-    const ownsPath =
-      (profile.role === "sales_officer" && pathname.startsWith("/so")) ||
-      (profile.role === "purchase_officer" && pathname.startsWith("/po")) ||
-      (MANAGER_ROLES.has(profile.role) && pathname.startsWith("/manager")) ||
-      (profile.role === "admin" && pathname.startsWith("/admin"));
+    const ownsPath = ownsStaffPath(profile.role, pathname);
 
     if (isPublic || (!ownsPath && !pathname.startsWith("/api"))) {
       return NextResponse.redirect(new URL(home, request.url));
