@@ -4,6 +4,8 @@ export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
 export default function Icon() {
+  const stroke = "#e23d2f";
+
   return new ImageResponse(
     (
       <div
@@ -13,26 +15,38 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0f0f0f",
-          borderRadius: 128,
-          color: "#ffffff",
-          fontSize: 178,
-          fontWeight: 900,
-          fontFamily: "Arial, sans-serif",
+          background: "transparent",
           position: "relative",
         }}
       >
-        NT
         <div
           style={{
             position: "absolute",
-            right: 82,
-            top: 82,
-            width: 68,
-            height: 68,
+            width: 420,
+            height: 240,
+            border: `34px solid ${stroke}`,
             borderRadius: 999,
-            background: "#e23d2f",
-            border: "14px solid #ffffff",
+            boxSizing: "border-box",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 142,
+            height: 270,
+            border: `28px solid ${stroke}`,
+            borderRadius: 999,
+            boxSizing: "border-box",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 280,
+            height: 106,
+            border: `28px solid ${stroke}`,
+            borderRadius: 999,
+            boxSizing: "border-box",
           }}
         />
       </div>

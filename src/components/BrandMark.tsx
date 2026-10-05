@@ -1,17 +1,20 @@
 export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const sizes = {
-    sm: "h-9 w-9 text-[10px]",
-    md: "h-11 w-11 text-xs",
-    lg: "h-14 w-14 text-sm",
+    sm: "h-8 w-12",
+    md: "h-10 w-14",
+    lg: "h-14 w-20",
   };
 
   return (
-    <div
+    <svg
       aria-hidden="true"
-      className={`relative grid shrink-0 place-items-center rounded-full bg-black font-black text-white shadow-[0_14px_35px_rgb(0_0_0/0.18)] ${sizes[size]}`}
+      viewBox="0 0 96 64"
+      className={`shrink-0 text-[var(--brand)] ${sizes[size]}`}
+      fill="none"
     >
-      <span className="leading-none">NT</span>
-      <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[var(--panel)] bg-[var(--brand)]" />
-    </div>
+      <ellipse cx="48" cy="32" rx="42" ry="24" stroke="currentColor" strokeWidth="7" />
+      <ellipse cx="48" cy="32" rx="14" ry="25" stroke="currentColor" strokeWidth="6" />
+      <ellipse cx="48" cy="31" rx="28" ry="10" stroke="currentColor" strokeWidth="6" />
+    </svg>
   );
 }

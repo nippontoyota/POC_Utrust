@@ -4,6 +4,8 @@ export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function AppleIcon() {
+  const stroke = "#e23d2f";
+
   return new ImageResponse(
     (
       <div
@@ -13,25 +15,38 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0f0f0f",
-          color: "#ffffff",
-          fontSize: 62,
-          fontWeight: 900,
-          fontFamily: "Arial, sans-serif",
+          background: "transparent",
           position: "relative",
         }}
       >
-        NT
         <div
           style={{
             position: "absolute",
-            right: 28,
-            top: 28,
-            width: 24,
-            height: 24,
+            width: 148,
+            height: 84,
+            border: `12px solid ${stroke}`,
             borderRadius: 999,
-            background: "#e23d2f",
-            border: "5px solid #ffffff",
+            boxSizing: "border-box",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 50,
+            height: 94,
+            border: `10px solid ${stroke}`,
+            borderRadius: 999,
+            boxSizing: "border-box",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 98,
+            height: 38,
+            border: `10px solid ${stroke}`,
+            borderRadius: 999,
+            boxSizing: "border-box",
           }}
         />
       </div>

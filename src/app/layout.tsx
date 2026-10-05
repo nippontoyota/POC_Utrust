@@ -17,6 +17,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Nippon Toyota UTrust",
   description: "Nippon Toyota UTrust Pre-Owned Cars",
+  icons: {
+    icon: "/icon",
+    apple: "/apple-icon",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
