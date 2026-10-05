@@ -131,7 +131,7 @@ const scenarios = [
   ["reject", "Customer declines broker listing", "Etios", "rejected_not_listed"],
   ["withdraw", "SO withdraws evaluation", "Yaris", "withdrawn"],
   ["cancel", "Accepted direct purchase cancelled", "Camry", "cancelled"],
-  ["consent", "Suspension and customer consent withdrawal", "Hyryder", "withdrawn"],
+  ["consent", "Suspension and customer consent withdrawal", "Urban Cruiser Hyryder", "withdrawn"],
   ["evaluation", "Awaiting PO evaluation", "Corolla", "pending_evaluation"],
   ["decision", "Awaiting customer decision", "Rumion", "pending_customer_decision"],
   ["purchase", "Awaiting direct purchase completion", "Innova Crysta", "purchase_completion_pending"],
@@ -178,11 +178,13 @@ async function prepare(v) {
       "Customer name": `${run} TEST ONLY ${v.index} - ${v.name}`,
       "Customer mobile number": `90000000${String(v.index).padStart(2, "0")}`,
       "Vehicle registration number": `${run}${String(v.index).padStart(2, "0")}`,
-      Make: "Toyota", Model: v.model, Variant: `${run} TEST ${v.index}`,
       "Registration year": "2022", "Odometer reading (km)": String(18000 + v.index * 1000),
       "Ownership count": "1", "Customer expected price (INR)": String(700000 + v.index * 10000),
     };
     for (const [label, value] of Object.entries(values)) await page.getByLabel(label, { exact: false }).fill(value);
+    await page.getByLabel("Make", { exact: false }).selectOption("Toyota");
+    await page.getByLabel("Model", { exact: false }).selectOption(v.model);
+    await page.getByLabel("Variant").fill(`${run} TEST ${v.index}`);
     await page.getByLabel("Fuel type").selectOption("petrol");
     await page.getByLabel("Transmission").selectOption("manual");
     await page.getByLabel("Loan / hypothecation status").selectOption("no");

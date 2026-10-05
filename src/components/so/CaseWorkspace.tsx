@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { MOBILE_PATTERN, isValidMobile, normalizeMobile } from "@/lib/validation";
+import { VEHICLE_MAKES } from "@/lib/vehicleModels";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
@@ -71,6 +72,9 @@ export function CaseWorkspace({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState(false);
+  const [otherMake, setOtherMake] = useState(false);
+  const [otherModel, setOtherModel] = useState(false);
+  const models = VEHICLE_MAKES.find(({ make }) => make === fields.make)?.models ?? [];
 
   function update<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
     setFields((f) => ({ ...f, [key]: value }));
@@ -83,7 +87,6 @@ export function CaseWorkspace({
       ["vehicle_reg_number", "Vehicle registration number is required."],
       ["make", "Make is required."],
       ["model", "Model is required."],
-      ["variant", "Variant is required."],
       ["registration_year", "Registration year is required."],
       ["fuel_type", "Fuel type is required."],
       ["transmission", "Transmission is required."],
@@ -131,7 +134,7 @@ export function CaseWorkspace({
       vehicle_reg_number: fields.vehicle_reg_number ? fields.vehicle_reg_number.trim().toUpperCase().replace(/\s+/g, "") : null,
       make: fields.make || null,
       model: fields.model || null,
-      variant: fields.variant || null,
+      variant: fields.variant.trim() || null,
       registration_year: fields.registration_year ? parseInt(fields.registration_year, 10) : null,
       fuel_type: fields.fuel_type || null,
       transmission: fields.transmission || null,
@@ -394,29 +397,75 @@ export function CaseWorkspace({
             />
           </FormField>
           <FormField label="Make" required>
-            <input
-              type="text"
+            <select
               disabled={!isDraft}
-              value={fields.make}
-              onChange={(e) => update("make", e.target.value)}
+              value={otherMake ? "__other__" : fields.make}
+              onChange={(e) => {
+                const isOther = e.target.value === "__other__";
+                setOtherMake(isOther);
+                setOtherModel(false);
+                setFields((f) => ({ ...f, make: isOther ? "" : e.target.value, model: "", variant: "" }));
+              }}
               className={inputClass}
-            />
+            >
+              <option value="">Select make...</option>
+              {fields.make && !otherMake && !VEHICLE_MAKES.some(({ make }) => make === fields.make) && (
+                <option value={fields.make}>{fields.make}</option>
+              )}
+              {VEHICLE_MAKES.map(({ make }) => <option key={make} value={make}>{make}</option>)}
+              <option value="__other__">Other make</option>
+            </select>
           </FormField>
+          {otherMake && (
+            <FormField label="Other make" required>
+              <input
+                type="text"
+                disabled={!isDraft}
+                value={fields.make}
+                onChange={(e) => setFields((f) => ({ ...f, make: e.target.value, model: "", variant: "" }))}
+                placeholder="Enter make"
+                className={inputClass}
+              />
+            </FormField>
+          )}
           <FormField label="Model" required>
-            <input
-              type="text"
-              disabled={!isDraft}
-              value={fields.model}
-              onChange={(e) => update("model", e.target.value)}
+            <select
+              disabled={!isDraft || !fields.make.trim()}
+              value={otherModel ? "__other__" : fields.model}
+              onChange={(e) => {
+                const isOther = e.target.value === "__other__";
+                setOtherModel(isOther);
+                setFields((f) => ({ ...f, model: isOther ? "" : e.target.value, variant: "" }));
+              }}
               className={inputClass}
-            />
+            >
+              <option value="">{fields.make.trim() ? "Select model..." : "Select make first"}</option>
+              {fields.model && !otherModel && !models.includes(fields.model) && (
+                <option value={fields.model}>{fields.model}</option>
+              )}
+              {models.map((model) => <option key={model} value={model}>{model}</option>)}
+              <option value="__other__">Other model</option>
+            </select>
           </FormField>
-          <FormField label="Variant" required>
+          {otherModel && (
+            <FormField label="Other model" required>
+              <input
+                type="text"
+                disabled={!isDraft || !fields.make.trim()}
+                value={fields.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder="Enter model"
+                className={inputClass}
+              />
+            </FormField>
+          )}
+          <FormField label="Variant">
             <input
               type="text"
               disabled={!isDraft}
               value={fields.variant}
               onChange={(e) => update("variant", e.target.value)}
+              placeholder="Optional"
               className={inputClass}
             />
           </FormField>
@@ -859,10 +908,12 @@ function PhotoSlot({
           }`}
         >
           <Camera className="h-4 w-4" strokeWidth={1.5} />
-          {uploading ? "Uploading..." : "Choose file"}
+          {uploading ? "Uploading..." : "Take photo"}
           <input
             type="file"
             accept="image/*"
+            capture="environment"
+            aria-label={`Take photo: ${label}`}
             disabled={disabled || uploading}
             className="hidden"
             onChange={(e) => {

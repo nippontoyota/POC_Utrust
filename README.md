@@ -37,7 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order. For an installation through `0011`, apply `supabase/migrations/0012_broker_marketplace.sql`, `0013_broker_reporting.sql`, and `0014_required_rc_book_photo.sql` using the Supabase SQL editor or migration runner before deploying the updated app.
+1. Apply migrations in numeric order. For an installation through `0011`, apply `supabase/migrations/0012_broker_marketplace.sql`, `0013_broker_reporting.sql`, `0014_required_rc_book_photo.sql`, and `0015_optional_case_variant.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` allows case submission without a vehicle variant.
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
 3. A group manager approves applications under **Broker Access**. Branch managers have scoped reporting but cannot approve or suspend marketplace accounts. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
 4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.

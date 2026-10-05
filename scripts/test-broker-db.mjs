@@ -636,7 +636,7 @@ check(
   "Brokers cannot change account approval",
 );
 const rcCase = await newCase(0, "draft");
-await query("update cases set vehicle_reg_number='TEST-RC-001',has_loan=false where id=$1", [rcCase.id]);
+await query("update cases set vehicle_reg_number='TEST-RC-001',has_loan=false,variant=null where id=$1", [rcCase.id]);
 for (const category of ["front", "rear", "right", "interior_odometer", "other"]) {
   await query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,$2,100,'image/jpeg',$3)", [rcCase.id, category, `test/${category}.jpg`]);
 }
@@ -648,8 +648,13 @@ await fail(() => as("so", () => query("insert into case_photos(case_id,category,
 await query("delete from case_photos where case_id=$1 and category='other'", [rcCase.id]);
 await fail(() => as("so", () => rpc("submit_case_for_evaluation", [rcCase.id])), /6 vehicle photos/);
 await query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'other',100,'image/jpeg','test/other.jpg')", [rcCase.id]);
+await fail(() => as("otherSo", () => rpc("submit_case_for_evaluation", [rcCase.id])), /Not authorized/);
+await query("update cases set model=null where id=$1", [rcCase.id]);
+await fail(() => as("so", () => rpc("submit_case_for_evaluation", [rcCase.id])), /missing required fields/);
+await query("update cases set model='Innova' where id=$1", [rcCase.id]);
 await as("so", () => rpc("submit_case_for_evaluation", [rcCase.id]));
-check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_evaluation", "Six vehicle photos plus RC allow submission");
+check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_evaluation", "Six vehicle photos plus RC allow submission without a variant");
+check(await scalar("select variant from cases where id=$1", [rcCase.id]) === null, "Optional variant stays null after submission");
 check((await as("po", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Assigned PO can inspect RC");
 check((await as("manager", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Branch manager can inspect RC");
 check((await as("otherSo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other SO cannot inspect RC");
