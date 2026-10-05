@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Car, Eye, EyeOff, Store, UserRound } from "lucide-react";
+import { Car, Eye, EyeOff, LoaderCircle, Store, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { employeeIdToAuthEmail } from "@/lib/employeeAuth";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +12,16 @@ import { FormField, inputClass } from "@/components/ui/FormField";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandMark } from "@/components/BrandMark";
 import { EMAIL_PATTERN, isValidEmail, normalizeEmail } from "@/lib/validation";
+
+const ROLE_HOME: Record<string, string> = {
+  sales_officer: "/so/dashboard",
+  purchase_officer: "/po/dashboard",
+  manager: "/manager/dashboard",
+  sales_manager: "/manager/dashboard",
+  cluster_manager: "/manager/dashboard",
+  po_manager: "/manager/dashboard",
+  admin: "/admin/dashboard",
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,6 +34,8 @@ export default function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
+
     setError(null);
     const username =
       mode === "broker" ? normalizeEmail(employeeId) : employeeId.trim();
@@ -36,7 +48,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email:
         mode === "broker"
           ? username
@@ -44,19 +56,24 @@ export default function LoginPage() {
       password,
     });
 
-    setLoading(false);
-
     if (error) {
       setError(
         mode === "broker"
           ? "Invalid email or password."
           : "Invalid Employee ID or password.",
       );
+      setLoading(false);
       return;
     }
 
-    router.refresh();
-    router.push("/");
+    const userId = signInData.user?.id;
+    const target = userId
+      ? mode === "broker"
+        ? "/broker/dashboard"
+        : await getStaffHome(supabase, userId)
+      : "/";
+
+    router.replace(target);
   }
 
   return (
@@ -76,7 +93,7 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
-        <Card as="form" onSubmit={handleSubmit} className="space-y-5">
+        <Card as="form" onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--brand)]">
               Welcome back
@@ -98,6 +115,7 @@ export default function LoginPage() {
                   key={value}
                   type="button"
                   aria-pressed={active}
+                  disabled={loading}
                   onClick={() => {
                     setMode(value);
                     setEmployeeId("");
@@ -128,6 +146,7 @@ export default function LoginPage() {
               autoFocus
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
+              disabled={loading}
               className={inputClass}
             />
           </FormField>
@@ -142,6 +161,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
                 className={`${inputClass} pr-12`}
               />
               <button
@@ -149,6 +169,7 @@ export default function LoginPage() {
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 title={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword((visible) => !visible)}
+                disabled={loading}
                 className="absolute right-3 top-[calc(50%+0.125rem)] inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-black/5 hover:text-zinc-950 focus:outline-none focus:ring-4 focus:ring-red-500/10 dark:hover:bg-white/10 dark:hover:text-zinc-100"
               >
                 {showPassword ? (
@@ -165,7 +186,8 @@ export default function LoginPage() {
           )}
 
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Signing in..." : "Sign in"}
+            {loading && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+            {loading ? "Signing in" : "Sign in"}
           </Button>
         </Card>
 
@@ -211,4 +233,17 @@ export default function LoginPage() {
       </section>
     </main>
   );
+}
+
+async function getStaffHome(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return profile ? ROLE_HOME[profile.role] : "/";
 }
