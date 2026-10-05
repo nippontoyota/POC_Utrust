@@ -54,6 +54,7 @@ export function RoleNav({
           <Link
             key={link.href}
             href={link.href}
+            prefetch
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             title={collapsed ? link.label : undefined}
