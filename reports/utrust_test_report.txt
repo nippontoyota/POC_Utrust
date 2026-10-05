@@ -1,0 +1,207 @@
+======================================================================
+UTRUST POC: COMPREHENSIVE TEST SUITE REPORT
+Date: 10/5/2026, 3:22:31 PM
+======================================================================
+
+This report details the execution of 200+ automated business logic, access
+control, and edge-case tests against the UTrust database schema and RLS policies.
+
+Total Tests Executed: 203
+Overall Status: ✅ ALL PASSED
+
+======================================================================
+PART 1: BROKER MARKETPLACE & WORKFLOW (85 Tests)
+======================================================================
+(Validates Broker listing visibility, offer submission, hold expiration, RLS access, and case lifecycle completion)
+
+85 broker workflow and access checks passed.
+
+======================================================================
+PART 2: PO ASSIGNMENT & CORE LIFECYCLE (34 Tests)
+======================================================================
+(Validates round-robin PO assignment, role-based access control, and status transition guards)
+
+━━━ SECTION 1: PO Assignment & Round-Robin ━━━
+  ✅ 1.1: First case assigned to an active PO (got po1)
+  ✅ 1.2: Second case assigned to a DIFFERENT PO (round-robin works)
+  ✅ 1.3: Third case assigned to the THIRD PO (3-way round-robin)
+  ✅ 1.4: Fourth case cycles BACK to the first PO (round-robin wraps)
+  ✅ 1.7: 0 active POs → error: 'No active Purchase Officer available'
+  ✅ 1.8: Inactive PO was NEVER assigned across 4 round-robin cycles
+  ✅ 1.9: PO from different branch was NEVER assigned
+
+━━━ SECTION 2: Case Lifecycle — Status Transitions ━━━
+  ✅ 2.1: Double submission → error: 'Case is not in draft status'
+  ✅ 2.2: Submit with missing fields → error: 'Case is missing required fields'
+  ✅ 2.3: Submit with < 6 photos → error about photos
+  ✅ 2.4: Wrong PO evaluates → error: 'Not authorized to evaluate this case'
+  ✅ 2.5: PO evaluates twice → error (UNIQUE constraint or status guard)
+  ✅ 2.6: PO evaluates without starting → error: 'Start the evaluation'
+  ✅ 2.7a: Case 1 is in pending_customer_decision
+  ✅ 2.7: SO withdraws from pending_customer_decision → status becomes 'withdrawn'
+  ✅ 2.8: Withdraw an already withdrawn case → error
+  ✅ 2.9: Duplicate vehicle reg with active case → blocked at draft INSERT
+  ✅ 2.10: Customer decision on pending_evaluation → error
+  ✅ 2.11: Counter offer after customer accepted → error
+
+━━━ SECTION 3: Role-Based Access Control ━━━
+  ✅ 3.1: SO1 sees only own cases (9 = 9)
+  ✅ 3.2: PO1 sees only assigned cases (3 = 3)
+  ✅ 3.3: Branch Manager sees only own branch cases (9 = 9)
+  ✅ 3.4: Group Manager sees ALL cases (11 = 11)
+  ✅ 3.7: Broker cannot read raw cases table (0 rows)
+  ✅ 3.8: Deactivated PO cannot start evaluation
+
+━━━ SECTION 5: Data Integrity — Boundaries ━━━
+  ✅ 5.1: Offer price = 0 → error: 'must be greater than zero'
+  ✅ 5.2: Negative offer price → error: 'must be greater than zero'
+  ✅ 5.7: Withdrawal without reason → error: 'withdrawal reason is required'
+  ✅ 5.8: Cancellation without reason → error: 'cancellation reason is required'
+  ✅ 5.9: All 11 case_refs are unique
+
+━━━ SECTION 6: Cross-Role / Cross-Branch ━━━
+  ✅ 6.2: Branch Manager cannot manage brokers (not group manager)
+  ✅ 6.4: SO cannot edit case after submission (RLS blocks update, 0 rows affected)
+  ✅ 6.5: SO cannot delete submitted case (RLS blocks delete, 0 rows affected)
+  ✅ 6.6: PO cannot create a case (RLS blocks insert)
+
+════════════════════════════════════════════════════════════
+RESULTS: 34 passed, 0 failed out of 34 total
+🎉 ALL TESTS PASSED — System behaviour matches the test plan.
+
+======================================================================
+PART 3: EXTREME EDGE CASES & SECURITY (84 Tests)
+======================================================================
+(Validates concurrency races, impersonation, boundary values, whitespace injections, and cross-branch data leaks)
+
+━━━ EC1: PO Assignment ━━━
+  ✅ EC1.1: Two simultaneous submissions get DIFFERENT POs (no duplicate assignment)
+  ✅ EC1.2: Both assigned POs are valid active POs in the branch
+
+━━━ EC2: Cross-Branch Data Isolation ━━━
+  ✅ EC2.1: SO in Branch-A cannot see Branch-B's case (RLS blocks)
+  ✅ EC2.2: PO in Branch-A cannot see Branch-B's case
+  ✅ EC2.3: Branch Manager-A cannot see Branch-B's case
+  ✅ EC2.4: Branch Manager-B CAN see their own branch's case
+  ✅ EC2.5: Group Manager sees cross-branch case
+  ✅ EC2.6: Case photos invisible to Branch Manager-A (follows parent case RLS)
+  ✅ EC2.7: Case photos visible to Branch Manager-B (7 photos)
+
+━━━ EC3: SO Ownership & Impersonation ━━━
+  ✅ EC3.1: SO2 cannot record decision on SO1's case
+  ✅ EC3.2: SO2 cannot withdraw SO1's case
+  ✅ EC3.3: SO2 cannot close SO1's case
+  ✅ EC3.4: SO2 cannot cancel SO1's case
+  ✅ EC3.5: SO2 cannot submit counter offer on SO1's case
+
+━━━ EC4: PO Evaluation Edge Cases ━━━
+  ✅ EC4.1: PO cannot submit without confirming inspection
+  ✅ EC4.2: PO cannot submit with NULL offer price
+  ✅ EC4.3: start_po_evaluation called twice creates only ONE event (idempotent)
+  ✅ EC4.4: PO from another branch cannot start evaluation on this case
+  ✅ EC4.5: Maximum valid offer price (₹999.99Cr) accepted
+
+━━━ EC5: Customer Counter Offer Edge Cases ━━━
+  ✅ EC5.1: Counter offer of ₹7.5L recorded successfully
+  ✅ EC5.2: Counter offer updated to ₹8L (overwrite allowed)
+  ✅ EC5.3: Counter offer of ₹0 rejected
+  ✅ EC5.4: Counter offer >= ₹1000Cr rejected
+  ✅ EC5.5: Counter offer note > 1000 chars rejected
+  ✅ EC5.6: Counter offer with null note accepted (optional field)
+
+━━━ EC6: Terminal State Immutability ━━━
+  ✅ EC6.0: Case successfully closed
+  ✅ EC6.1: Cannot withdraw a closed case
+  ✅ EC6.2: Cannot close a closed case again
+  ✅ EC6.3: Cannot cancel a closed case
+  ✅ EC6.4: Cannot record decision on a closed case
+  ✅ EC6.5: Cannot close a cancelled case
+  ✅ EC6.6: Cannot cancel a cancelled case again
+  ✅ EC6.7: Rejection without broker consent → rejected_not_listed
+  ✅ EC6.8: Cannot withdraw a rejected_not_listed case
+
+━━━ EC7: Broker-Staff Identity Conflict ━━━
+  ✅ EC7.1: User with both broker + staff profile: is_approved_broker() returns FALSE
+  ✅ EC7.2: Staff-broker hybrid cannot browse marketplace
+  ✅ EC7.3: Staff-broker hybrid CAN create cases as SO (staff role takes priority)
+
+━━━ EC8: Suspended Broker Restrictions ━━━
+  ✅ EC8.1: Suspended broker cannot browse marketplace
+  ✅ EC8.2: Suspended broker cannot place offers
+
+━━━ EC9: Whitespace & Empty Input Validation ━━━
+  ✅ EC9.1: Withdraw with whitespace-only reason rejected
+  ✅ EC9.2: Withdraw with tab/newline-only reason rejected
+  ✅ EC9.3: Cancel with whitespace-only reason rejected
+  ✅ EC9.4: Withdraw with NULL reason rejected
+
+━━━ EC10: Case Reference Format & Sequencing ━━━
+  ✅ EC10.1: All 14 case_refs match format UT-XXX-YYYYMM-NNNN
+  ✅ EC10.2: Case ref sequences are gapless within each branch+month
+  ✅ EC10.3: All 14 case_refs globally unique
+
+━━━ EC11: Audit Trail Completeness ━━━
+  ✅ EC11.1: Audit: submission event recorded
+  ✅ EC11.2: Audit: evaluation start event recorded
+  ✅ EC11.3: Audit: evaluation submission event recorded
+  ✅ EC11.4: Audit: customer decision event recorded
+  ✅ EC11.5: Audit: case closed event recorded
+  ✅ EC11.6: Every audit event has actor_id AND actor_role (full attribution)
+  ✅ EC11.7: All SO audit events correctly tagged as 'sales_officer'
+  ✅ EC11.8: All PO audit events correctly tagged as 'purchase_officer'
+  ✅ EC11.9: Submission audit includes assigned_po_id in metadata
+
+━━━ EC12: Manager Profile Visibility ━━━
+  ✅ EC12.1: Branch Manager-A sees 7 profiles (branch has 7)
+  ✅ EC12.2: Branch Manager-A cannot see Branch-B's staff profiles
+  ✅ EC12.3: Group Manager sees ALL 11 profiles
+  ✅ EC12.4: SO sees only their own profile (1 row)
+
+━━━ EC13: Column-Level Grant Enforcement ━━━
+  ✅ EC13.1: SO cannot directly set assigned_po_id (column grant blocks)
+  ✅ EC13.2: SO cannot directly change case status (column grant blocks)
+  ✅ EC13.3: SO cannot set case_ref directly (column grant blocks)
+  ✅ EC13.4: SO cannot set submitted_at directly (column grant blocks)
+  ✅ EC13.5: Broker cannot insert photo with broker_visible=true (column grant blocks)
+
+━━━ EC14: Customer Decision Branching ━━━
+  ✅ EC14.1: Customer accepted → purchase_completion_pending
+  ✅ EC14.2: Accepted case has NULL broker_consent (not applicable)
+  ✅ EC14.3: Customer rejected + broker consent → listed_for_brokers
+  ✅ EC14.4: broker_consent = true stored
+  ✅ EC14.5: listed_at timestamp set when listed
+  ✅ EC14.6: Customer rejected + no broker consent → rejected_not_listed
+  ✅ EC14.7: Customer rejected + null broker consent → rejected_not_listed (defaults to no)
+
+━━━ EC15: Plate-Visible Photo Safety ━━━
+  ✅ EC15.1: Plate-visible photo cannot be published to brokers
+  ✅ EC15.2: RC book photo can never be made broker-visible
+  ✅ EC15.3: Non-plate photo published to brokers successfully
+
+━━━ EC16: Vehicle Reg Number Reuse After Terminal ━━━
+  ✅ EC16.0: First case closed
+  ✅ EC16.1: Same reg number reused after previous case closed → SUCCESS
+  ✅ EC16.2: Third case with same reg blocked while second is still active
+
+━━━ EC17: Direct Table Manipulation Attacks ━━━
+  ✅ EC17.1: Broker cannot write fake audit events
+  ✅ EC17.2: SO cannot insert fake PO evaluation
+  ✅ EC17.3: Broker cannot read raw broker_offers table (RLS denies)
+  ✅ EC17.4: Broker cannot read raw broker_reservations table
+
+━━━ EC18: Empty Branch Scenarios ━━━
+  ✅ EC18.1: Branch with no PO: submission fails gracefully with clear error
+  ✅ EC18.2: Case remains in draft after failed submission (no side effects)
+
+━━━ EC19: Timestamps & Triggers ━━━
+  ✅ EC19.1: updated_at auto-advances on UPDATE (trigger works)
+
+════════════════════════════════════════════════════════════
+RESULTS: 84 passed, 0 failed out of 84 total
+🎉 ALL EDGE CASE TESTS PASSED
+
+JSON: {"passed":84,"failed":0}
+
+======================================================================
+END OF REPORT
+======================================================================

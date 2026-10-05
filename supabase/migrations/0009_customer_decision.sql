@@ -152,7 +152,7 @@ begin
     raise exception 'Case is not awaiting completion';
   end if;
 
-  if p_reason is null or trim(p_reason) = '' then
+  if p_reason is null or trim(both E' \t\n\r' from p_reason) = '' then
     raise exception 'A cancellation reason is required';
   end if;
 
