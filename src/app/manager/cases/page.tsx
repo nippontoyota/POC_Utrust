@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import type { Enums } from "@/lib/supabase/database.types";
@@ -54,7 +55,7 @@ export default async function ManagerCasesPage({
             className="w-full rounded-2xl border border-[var(--line)] bg-white/80 py-3 pl-10 pr-4 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100"
           />
         </div>
-        <select
+        <AutoFilterSelect
           name="status"
           defaultValue={status ?? ""}
           className="rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100"
@@ -65,7 +66,7 @@ export default async function ManagerCasesPage({
               {label}
             </option>
           ))}
-        </select>
+        </AutoFilterSelect>
         <Button type="submit">Filter</Button>
         {(q || status) && (
           <Link

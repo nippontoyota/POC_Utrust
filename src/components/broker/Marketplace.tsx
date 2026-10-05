@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { inputClass } from "@/components/ui/FormField";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { formatINR } from "@/lib/formatCurrency";
 import type { MarketplaceResult } from "@/lib/broker";
 import { AutoRefresh, Deadline } from "./Refresh";
@@ -65,7 +66,7 @@ export async function Marketplace({
           className={inputClass}
           maxLength={100}
         />
-        <select
+        <AutoFilterSelect
           name="branch"
           aria-label="Branch"
           defaultValue={params.branch ?? ""}
@@ -77,8 +78,8 @@ export async function Marketplace({
               {b.name}
             </option>
           ))}
-        </select>
-        <select
+        </AutoFilterSelect>
+        <AutoFilterSelect
           name="sort"
           aria-label="Sort vehicles"
           defaultValue={params.sort ?? "newest"}
@@ -87,7 +88,7 @@ export async function Marketplace({
           <option value="newest">Newest listings</option>
           <option value="year">Newest vehicle year</option>
           <option value="mileage">Lowest mileage</option>
-        </select>
+        </AutoFilterSelect>
         <button
           aria-label="Search vehicles"
           title="Search vehicles"

@@ -8,6 +8,7 @@ import { inputClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 
 export default async function Page({
   searchParams,
@@ -57,7 +58,7 @@ export default async function Page({
         description="Approve brokers, suspend marketplace access, and keep broker status auditable."
       />
       <form className="flex gap-2 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
-        <select
+        <AutoFilterSelect
           name="status"
           aria-label="Broker status"
           defaultValue={status}
@@ -68,7 +69,7 @@ export default async function Page({
               {s}
             </option>
           ))}
-        </select>
+        </AutoFilterSelect>
         <Button type="submit" variant="secondary">
           Filter
         </Button>
