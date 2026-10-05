@@ -7,6 +7,7 @@ import { inputClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { AutoRefresh } from "@/components/broker/Refresh";
 import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 import { isValidDateInput } from "@/lib/validation";
@@ -82,7 +83,7 @@ export default async function Page({
         </label>
         <label className="text-sm">
           Branch
-          <select
+          <AutoFilterSelect
             name="branch"
             defaultValue={params.branch ?? ""}
             className={inputClass}
@@ -93,11 +94,11 @@ export default async function Page({
                 {b.name}
               </option>
             ))}
-          </select>
+          </AutoFilterSelect>
         </label>
         <label className="text-sm">
           Broker
-          <select
+          <AutoFilterSelect
             name="broker"
             defaultValue={params.broker ?? ""}
             className={inputClass}
@@ -108,7 +109,7 @@ export default async function Page({
                 {b.name}
               </option>
             ))}
-          </select>
+          </AutoFilterSelect>
         </label>
         <Button>
           <Search size={16} />

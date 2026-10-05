@@ -221,6 +221,20 @@ export default async function ManagerCaseDetailPage({
         </Card>
       )}
 
+      {caseRow.customer_counter_offer_price && (
+        <Card>
+          <CardTitle>Customer Counter Offer</CardTitle>
+          <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <DetailRow label="Counter offer" value={formatINR(caseRow.customer_counter_offer_price)} />
+            <DetailRow label="Note" value={caseRow.customer_counter_offer_note} />
+            <DetailRow
+              label="Recorded at"
+              value={caseRow.customer_counter_offer_at ? new Date(caseRow.customer_counter_offer_at).toLocaleString("en-IN") : undefined}
+            />
+          </div>
+        </Card>
+      )}
+
       {caseRow.customer_decision && (
         <Card>
           <CardTitle>Customer Decision</CardTitle>

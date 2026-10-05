@@ -282,6 +282,12 @@ export function CaseWorkspace({
     null | "accept" | "reject" | "close" | "cancel" | "withdraw"
   >(null);
   const [reasonText, setReasonText] = useState("");
+  const [counterOfferPrice, setCounterOfferPrice] = useState(
+    initialCase.customer_counter_offer_price?.toString() ?? ""
+  );
+  const [counterOfferNote, setCounterOfferNote] = useState(
+    initialCase.customer_counter_offer_note ?? ""
+  );
 
   async function runDecision(
     fn: () => PromiseLike<{ error: { message: string } | null }>,
@@ -314,6 +320,32 @@ export function CaseWorkspace({
         p_broker_consent: consent,
       })
     );
+  }
+
+  async function saveCounterOffer() {
+    const price = Number(counterOfferPrice);
+    if (!Number.isFinite(price) || price <= 0 || price > 999999999) {
+      setError("Customer counter offer must be between INR 1 and INR 99,99,99,999.");
+      return;
+    }
+
+    setDecisionSubmitting(true);
+    setError(null);
+
+    const { error: rpcError } = await supabase.rpc("record_customer_counter_offer", {
+      p_case_id: initialCase.id,
+      p_counter_offer_price: price,
+      p_note: counterOfferNote.trim() || null,
+    });
+
+    setDecisionSubmitting(false);
+
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+
+    router.refresh();
   }
 
   function confirmClose() {
@@ -690,6 +722,56 @@ export function CaseWorkspace({
           <p className="mb-4 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
             {formatINR(offer.offer_price)}
           </p>
+
+          <div className="mb-5 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] p-4">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  Customer Counter Offer
+                </h3>
+                {initialCase.customer_counter_offer_at && (
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Last recorded {new Date(initialCase.customer_counter_offer_at).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              {initialCase.customer_counter_offer_price && (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black tabular-nums text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  {formatINR(initialCase.customer_counter_offer_price)}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-end">
+              <FormField label="Counter amount (INR)">
+                <input
+                  type="number"
+                  min={1}
+                  max={999999999}
+                  step={1}
+                  value={counterOfferPrice}
+                  onChange={(e) => setCounterOfferPrice(e.target.value)}
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Note">
+                <input
+                  type="text"
+                  maxLength={1000}
+                  value={counterOfferNote}
+                  onChange={(e) => setCounterOfferNote(e.target.value)}
+                  placeholder="Optional"
+                  className={inputClass}
+                />
+              </FormField>
+              <Button
+                variant="secondary"
+                onClick={saveCounterOffer}
+                disabled={decisionSubmitting || !counterOfferPrice}
+              >
+                {decisionSubmitting ? "Saving..." : "Save Counter"}
+              </Button>
+            </div>
+          </div>
 
           {pendingAction === "accept" ? (
             <div className="rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">

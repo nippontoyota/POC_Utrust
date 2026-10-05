@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import type { Enums } from "@/lib/supabase/database.types";
@@ -59,14 +60,14 @@ export default async function ManagerCasesPage({
               className={`w-full pl-10 ${inputClass}`}
             />
           </div>
-          <select name="status" defaultValue={status ?? ""} className={inputClass}>
+          <AutoFilterSelect name="status" defaultValue={status ?? ""} className={inputClass}>
             <option value="">All statuses</option>
             {Object.entries(CASE_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
-          </select>
+          </AutoFilterSelect>
           <Button type="submit">Filter</Button>
           {(q || status) && (
             <Link href="/manager/cases" className="self-center text-sm text-zinc-500 hover:underline dark:text-zinc-400">
@@ -200,23 +201,23 @@ export default async function ManagerCasesPage({
           />
         </div>
         {role === "cluster_manager" && (
-          <select name="branch" defaultValue={branch ?? ""} className={inputClass}>
+          <AutoFilterSelect name="branch" defaultValue={branch ?? ""} className={inputClass}>
             <option value="">All branches in cluster</option>
             {clusterBranches?.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
               </option>
             ))}
-          </select>
+          </AutoFilterSelect>
         )}
-        <select name="status" defaultValue={status ?? ""} className={inputClass}>
+        <AutoFilterSelect name="status" defaultValue={status ?? ""} className={inputClass}>
           <option value="">All statuses</option>
           {Object.entries(CASE_STATUS_LABELS).filter(([value]) => value !== "draft").map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
-        </select>
+        </AutoFilterSelect>
         <Button type="submit">Filter</Button>
         {(q || status || branch) && (
           <Link href="/manager/cases" className="self-center text-sm text-zinc-500 hover:underline dark:text-zinc-400">

@@ -295,6 +295,10 @@ export type Database = {
           customer_decision: Database["public"]["Enums"]["customer_decision_type"] | null
           customer_decision_at: string | null
           customer_decision_by: string | null
+          customer_counter_offer_at: string | null
+          customer_counter_offer_by: string | null
+          customer_counter_offer_note: string | null
+          customer_counter_offer_price: number | null
           customer_expected_price: number | null
           customer_mobile: string | null
           customer_name: string | null
@@ -333,6 +337,10 @@ export type Database = {
           customer_decision?: Database["public"]["Enums"]["customer_decision_type"] | null
           customer_decision_at?: string | null
           customer_decision_by?: string | null
+          customer_counter_offer_at?: string | null
+          customer_counter_offer_by?: string | null
+          customer_counter_offer_note?: string | null
+          customer_counter_offer_price?: number | null
           customer_expected_price?: number | null
           customer_mobile?: string | null
           customer_name?: string | null
@@ -371,6 +379,10 @@ export type Database = {
           customer_decision?: Database["public"]["Enums"]["customer_decision_type"] | null
           customer_decision_at?: string | null
           customer_decision_by?: string | null
+          customer_counter_offer_at?: string | null
+          customer_counter_offer_by?: string | null
+          customer_counter_offer_note?: string | null
+          customer_counter_offer_price?: number | null
           customer_expected_price?: number | null
           customer_mobile?: string | null
           customer_name?: string | null
@@ -512,6 +524,14 @@ export type Database = {
           p_case_id: string
           p_decision: Database["public"]["Enums"]["customer_decision_type"]
           p_broker_consent?: boolean | null
+        }
+        Returns: Database["public"]["Tables"]["cases"]["Row"]
+      }
+      record_customer_counter_offer: {
+        Args: {
+          p_case_id: string
+          p_counter_offer_price: number
+          p_note?: string | null
         }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }
