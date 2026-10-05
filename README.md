@@ -37,9 +37,9 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order through `supabase/migrations/0021_po_manager_cases_access_fix.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles (see "Manager Sub-Types" below).
+1. Apply migrations in numeric order through `supabase/migrations/0023_admin_management.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles; `0022`-`0023` add the Admin role (see "Manager Sub-Types" and "Admin Role" below).
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
-3. A group manager approves applications under **Broker Access**. Branch managers have scoped reporting but cannot approve or suspend marketplace accounts. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
+3. An **Admin** approves applications under **Brokers**. Managers (branch or group) have read-only Broker Performance reporting only and cannot approve, reject, or suspend brokers. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
 4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
 5. Verify one complete flow with SO, PO, broker, branch-manager, and group-manager accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
 
@@ -77,6 +77,29 @@ node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
 ```
 
 The `/manager/*` pages are shared across all four manager sub-types — the database scopes what each one sees automatically via row-level security, so there is no separate page tree per role. `po_manager`'s pages take a different, RPC-based data path (see above) since it's the one role that needs column-level restriction, not just row-level.
+
+## Admin Role
+
+A separate `admin` role (`/admin/*`) owns account and broker administration, strictly apart from case/business data (which stays with the Manager family):
+
+- **Users** (`/admin/users`) — every staff account (SO, PO, and the whole Manager family). Admin can create new accounts, edit an existing one (including reassigning role/branch/cluster), activate/deactivate, and reset a password. There is no hard delete — deactivating keeps the account's case/offer history intact and attributed to them, matching how the rest of the system treats history. An admin cannot deactivate their own account.
+- **Brokers** (`/admin/brokers`) — approve, reject, suspend, and reactivate broker applications (moved here from the Manager role's old `is_group_manager`-gated "Broker Access" screen, which no longer exists). Managers keep read-only Broker Performance reporting only.
+- **Dashboard** (`/admin/dashboard`) — staff counts by role, active/inactive counts, broker counts by status. No case or customer data appears anywhere under `/admin`.
+
+Two different implementation paths, worth knowing about:
+
+- Activate/deactivate, role reassignment, and broker approve/reject/suspend/reactivate are Postgres functions (`admin_set_profile_active`, `admin_reassign_profile`, `manage_broker`) callable straight from the browser, same as everywhere else in this app — each checks `is_active_admin()` itself.
+- Creating an account and resetting a password need Supabase's Auth Admin API (to actually create a login or change its password), which requires the service-role key and can never reach the browser. Those two go through Next.js Server Actions (`src/lib/actions/admin.ts`) that re-verify the caller is an active admin using their own normal session, then use the existing `createServiceClient()` helper (`src/lib/supabase/service.ts`) — already used by the CLI seed script — to perform the privileged operation server-side.
+
+Every admin action is logged to `admin_events` (actor, action, target, metadata), mirroring `broker_admin_events`/`case_events` elsewhere in the schema.
+
+Provisioning is owner-only, same as the rest of the Manager family:
+
+```bash
+node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>
+```
+
+From there, that Admin account can create every other account (including additional Admins) through the UI.
 
 ## Broker Workflow and Access
 

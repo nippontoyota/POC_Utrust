@@ -9,6 +9,7 @@ const ROLE_HOME: Record<string, string> = {
   sales_manager: "/manager/dashboard",
   cluster_manager: "/manager/dashboard",
   po_manager: "/manager/dashboard",
+  admin: "/admin/dashboard",
 };
 
 const MANAGER_ROLES = new Set(["manager", "sales_manager", "cluster_manager", "po_manager"]);
@@ -62,7 +63,8 @@ export async function proxy(request: NextRequest) {
     const ownsPath =
       (profile.role === "sales_officer" && pathname.startsWith("/so")) ||
       (profile.role === "purchase_officer" && pathname.startsWith("/po")) ||
-      (MANAGER_ROLES.has(profile.role) && pathname.startsWith("/manager"));
+      (MANAGER_ROLES.has(profile.role) && pathname.startsWith("/manager")) ||
+      (profile.role === "admin" && pathname.startsWith("/admin"));
 
     if (isPublic || (!ownsPath && !pathname.startsWith("/api"))) {
       return NextResponse.redirect(new URL(home, request.url));

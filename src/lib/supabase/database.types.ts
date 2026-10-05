@@ -71,6 +71,44 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_events: {
+        Row: {
+          actor_id: string
+          action: string
+          target_type: string
+          target_id: string
+          metadata: Json | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          actor_id: string
+          action: string
+          target_type: string
+          target_id: string
+          metadata?: Json | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          actor_id?: string
+          action?: string
+          target_type?: string
+          target_id?: string
+          metadata?: Json | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brokers: {
         Row: {
           broker_ref: string
@@ -511,6 +549,23 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       is_approved_broker: { Args: Record<PropertyKey, never>; Returns: boolean }
+      is_active_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      admin_dashboard_summary: { Args: Record<PropertyKey, never>; Returns: Json }
+      admin_set_profile_active: {
+        Args: { p_profile_id: string; p_active: boolean }
+        Returns: undefined
+      }
+      admin_reassign_profile: {
+        Args: {
+          p_profile_id: string
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_branch_id?: string | null
+          p_cluster_id?: string | null
+          p_is_group_manager?: boolean
+          p_full_name?: string | null
+        }
+        Returns: undefined
+      }
       cancel_case: {
         Args: { p_case_id: string; p_reason: string }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
@@ -561,6 +616,7 @@ export type Database = {
         | "sales_manager"
         | "cluster_manager"
         | "po_manager"
+        | "admin"
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"

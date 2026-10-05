@@ -57,15 +57,6 @@ export default async function ManagerLayout({
               },
             ]
           : []),
-        ...(role === "manager" && profile?.is_group_manager
-          ? [
-              {
-                href: "/manager/brokers",
-                label: "Broker Access",
-                icon: "access" as const,
-              },
-            ]
-          : []),
       ]}
     >
       {children}

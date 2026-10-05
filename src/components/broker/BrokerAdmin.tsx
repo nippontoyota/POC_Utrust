@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pause, Play, X } from "lucide-react";
+import { Check, KeyRound, Pause, Play, X } from "lucide-react";
 import type { Tables } from "@/lib/supabase/database.types";
 import { Button } from "@/components/ui/Button";
 import { inputClass } from "@/components/ui/FormField";
+import { ResetPasswordForm } from "@/components/admin/ResetPasswordForm";
 import { ActionFeedback, useBrokerAction } from "./useBrokerAction";
 
 export function BrokerAdmin({ broker }: { broker: Tables<"brokers"> }) {
@@ -74,6 +75,16 @@ export function BrokerAdmin({ broker }: { broker: Tables<"brokers"> }) {
         })}
       </div>
       <ActionFeedback error={error} success={success} />
+      <details>
+        <summary className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-400">
+          <span className="inline-flex items-center gap-1.5 align-middle">
+            <KeyRound className="h-3.5 w-3.5" /> Reset password
+          </span>
+        </summary>
+        <div className="mt-3">
+          <ResetPasswordForm userId={broker.id} targetType="broker" />
+        </div>
+      </details>
     </article>
   );
 }
