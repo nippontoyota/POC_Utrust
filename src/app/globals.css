@@ -76,6 +76,12 @@ body {
   .lucide {
     flex-shrink: 0;
   }
+
+  select option,
+  select optgroup {
+    background: #ffffff;
+    color: #111827;
+  }
 }
 
 @keyframes navigation-enter {
