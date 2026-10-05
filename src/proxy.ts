@@ -15,6 +15,12 @@ const ROLE_HOME: Record<string, string> = {
 const MANAGER_ROLES = new Set(["manager", "sales_manager", "cluster_manager", "po_manager"]);
 
 const PUBLIC_PATHS = ["/login", "/signup", "/broker-signup", "/auth/callback"];
+const STAFF_PATH_ROLES: Record<string, keyof typeof ROLE_HOME> = {
+  "/admin": "manager",
+  "/manager": "manager",
+  "/po": "purchase_officer",
+  "/so": "sales_officer",
+};
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -52,11 +58,41 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated. Figure out which "world" they belong to: staff (profiles) or broker.
-  const [{ data: profile }, { data: broker }] = await Promise.all([
-    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    supabase.from("brokers").select("status").eq("id", user.id).maybeSingle(),
-  ]);
+  if (pathname.startsWith("/api")) return response;
+
+  const staffRole = Object.entries(STAFF_PATH_ROLES).find(([path]) =>
+    pathname.startsWith(path)
+  )?.[1];
+
+  if (staffRole) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.role === staffRole) return response;
+    return NextResponse.redirect(
+      new URL(profile ? ROLE_HOME[profile.role] : "/signup", request.url)
+    );
+  }
+
+  if (pathname.startsWith("/broker")) {
+    const { data: broker } = await supabase
+      .from("brokers")
+      .select("status")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (broker) return response;
+  }
+
+  // Authenticated public/unknown paths still need the user's home route.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
 
   if (profile) {
     const home = ROLE_HOME[profile.role];
@@ -72,8 +108,14 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  const { data: broker } = await supabase
+    .from("brokers")
+    .select("status")
+    .eq("id", user.id)
+    .maybeSingle();
+
   if (broker) {
-    if (isPublic || (!pathname.startsWith("/broker") && !pathname.startsWith("/api"))) {
+    if (isPublic || !pathname.startsWith("/broker")) {
       return NextResponse.redirect(new URL("/broker/dashboard", request.url));
     }
     return response;

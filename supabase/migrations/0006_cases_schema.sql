@@ -325,7 +325,7 @@ begin
     raise exception 'Case cannot be withdrawn from its current status';
   end if;
 
-  if p_reason is null or trim(p_reason) = '' then
+  if p_reason is null or trim(both E' \t\n\r' from p_reason) = '' then
     raise exception 'A withdrawal reason is required';
   end if;
 
