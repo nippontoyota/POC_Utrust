@@ -139,9 +139,9 @@ Coverage includes privacy/RLS, photo review, scoped reports, approval/suspension
 
 ## Persistent Vehicle Journey Tests
 
-`scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, branch managers, a group manager, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
+`scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, Sales Managers, a Cluster Manager, an Admin, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
 
-**Stale as of `0024`:** this script (and `scripts/test-broker-db.mjs`) still provisions and exercises the old generic `manager`/"group manager" role, which no longer exists in the `app_role` enum — both will fail until rewritten against Sales Manager / Cluster Manager instead.
+Since `0024`, the fixture picks two free branches that share a cluster (for Cluster Manager scope coverage) plus a third free branch in a different cluster (to prove that scope has a limit), and provisions a Cluster Manager and an Admin account instead of a branch/group manager. Broker approval now goes through the Admin account at `/admin/brokers` rather than a group manager at the old `/manager/brokers`.
 
 The default run is `QA20261003A`. In **Manager > All Cases**, search for that marker, or open `/manager/cases?q=QA20261003A`. Case detail shows the saved activity log, acting roles, decision reasons, prices, and broker reservation history. SO and PO accounts see their own branch assignments; brokers see their own bids and reservations.
 

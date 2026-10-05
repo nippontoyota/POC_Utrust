@@ -45,15 +45,23 @@ for (const file of (
   }
 }
 console.log("All migrations applied to isolated PostgreSQL.");
-const branches = (await query("select id from branches order by code limit 2"))
+// branches[0] and branches[1] (Nettoor/Kalamassery) share the Cochin cluster;
+// branches[2] (Irinjalakuda) sits in the Thrissur cluster -- needed to prove
+// Cluster Manager's scope actually stops at the cluster boundary.
+const branches = (await query("select id from branches order by code limit 3"))
   .rows;
+const clusterId = await scalar(
+  "select cluster_id from branches where id=$1",
+  [branches[0].id],
+);
 const ids = Object.fromEntries(
   [
     "so",
     "otherSo",
     "po",
-    "manager",
-    "group",
+    "salesManager",
+    "clusterManager",
+    "admin",
     "broker1",
     "broker2",
     "pending",
@@ -61,18 +69,25 @@ const ids = Object.fromEntries(
 );
 for (const id of Object.values(ids))
   await query("insert into auth.users values($1)", [id]);
-for (const [key, role, branch, group] of [
-  ["so", "sales_officer", 0, false],
-  ["otherSo", "sales_officer", 1, false],
-  ["po", "purchase_officer", 0, false],
-  ["manager", "manager", 0, false],
-  ["group", "manager", 0, true],
+for (const [key, role, branch] of [
+  ["so", "sales_officer", 0],
+  ["otherSo", "sales_officer", 1],
+  ["po", "purchase_officer", 0],
+  ["salesManager", "sales_manager", 0],
 ]) {
   await query(
-    "insert into profiles(id,employee_id,full_name,role,branch_id,is_group_manager) values($1,$2,$2,$3,$4,$5)",
-    [ids[key], key, role, branches[branch].id, group],
+    "insert into profiles(id,employee_id,full_name,role,branch_id) values($1,$2,$2,$3,$4)",
+    [ids[key], key, role, branches[branch].id],
   );
 }
+await query(
+  "insert into profiles(id,employee_id,full_name,role,cluster_id) values($1,$2,$2,'cluster_manager',$3)",
+  [ids.clusterManager, "clusterManager", clusterId],
+);
+await query(
+  "insert into profiles(id,employee_id,full_name,role) values($1,$2,$2,'admin')",
+  [ids.admin, "admin"],
+);
 for (const key of ["broker1", "broker2", "pending"])
   await query(
     "insert into brokers(id,company_name,contact_name,phone,email,status) values($1,$2,$2,'1234567890',$3,$4)",
@@ -360,12 +375,19 @@ const dOffer = await offer("broker1", d.id, 400000);
 const dHold = await select(d.id, dOffer);
 await fail(
   () =>
-    as("manager", () =>
-      rpc("manage_broker", [ids.broker1, "suspend", "Branch manager"]),
+    as("salesManager", () =>
+      rpc("manage_broker", [ids.broker1, "suspend", "Sales manager"]),
     ),
-  /group manager/,
+  /Active admin required/,
 );
-await as("group", () =>
+await fail(
+  () =>
+    as("clusterManager", () =>
+      rpc("manage_broker", [ids.broker1, "suspend", "Cluster manager"]),
+    ),
+  /Active admin required/,
+);
+await as("admin", () =>
   rpc("manage_broker", [ids.broker1, "suspend", "Access review"]),
 );
 check(
@@ -375,7 +397,7 @@ check(
   "Suspension releases active hold",
 );
 await fail(() => market("broker1", d.id), /Approved broker/);
-await as("group", () =>
+await as("admin", () =>
   rpc("manage_broker", [ids.broker1, "reactivate", "Review complete"]),
 );
 check(
@@ -389,13 +411,13 @@ check(
   (await market("broker2", d.id)).total === 0,
   "Consent withdrawal delists case",
 );
-await as("group", () =>
+await as("admin", () =>
   rpc("manage_broker", [ids.pending, "approve", "Identity checked"]),
 );
 check(
   (await scalar("select status from brokers where id=$1", [ids.pending])) ===
     "approved",
-  "Group manager approves broker",
+  "Admin approves broker",
 );
 
 const other = await newCase(1);
@@ -405,27 +427,30 @@ check(
   "Broker can browse across branches",
 );
 await fail(
-  () => as("manager", () => rpc("staff_broker_case", [other.id])),
+  () => as("salesManager", () => rpc("staff_broker_case", [other.id])),
   /Not authorized/,
 );
-const report = await as("manager", () => rpc("broker_report", []));
+await fail(
+  () => as("salesManager", () => rpc("broker_report", [])),
+  /Active cluster manager required/,
+);
+const outsideCluster = await newCase(2);
+const report = await as("clusterManager", () => rpc("broker_report", []));
 check(
   report.completed === 1 && report.deal_value === 530000,
   "One completed deal counted despite earlier expired attempt",
 );
 check(
-  !report.cases.some((row) => row.id === other.id),
-  "Manager report respects branch scope",
+  report.cases.some((row) => row.id === other.id),
+  "Cluster Manager sees cases across every branch in their own cluster",
 );
 check(
-  (await as("group", () => rpc("broker_report", []))).cases.some(
-    (row) => row.id === other.id,
-  ),
-  "Group manager sees all branches",
+  !report.cases.some((row) => row.id === outsideCluster.id),
+  "Cluster Manager report excludes a case from a different cluster",
 );
 check(
   (
-    await as("manager", () =>
+    await as("clusterManager", () =>
       rpc("broker_report", ["2099-01-01", "2099-12-31"]),
     )
   ).completed === 0,
@@ -580,7 +605,7 @@ check(
 );
 await fail(
   () => as("broker1", () => rpc("broker_report", [])),
-  /Active manager/,
+  /Active cluster manager required/,
 );
 await fail(
   () => as("broker1", () => rpc("staff_broker_case", [f.id])),
@@ -662,7 +687,7 @@ check(await scalar("select variant from cases where id=$1", [rcCase.id]) === nul
 check(await scalar("select customer_expected_price from cases where id=$1", [rcCase.id]) === null, "Optional expected price stays null after submission");
 check(await as("po", () => scalar("select color from cases where id=$1", [rcCase.id])) === "Pearl white", "Assigned PO can read the saved colour");
 check((await as("po", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Assigned PO can inspect RC");
-check((await as("manager", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Branch manager can inspect RC");
+check((await as("salesManager", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Sales Manager can inspect RC");
 check((await as("otherSo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other SO cannot inspect RC");
 await as("po", () => rpc("start_po_evaluation", [rcCase.id]));
 await as("po", () => rpc("submit_po_evaluation", [rcCase.id, true, "RC reviewed", 450000]));

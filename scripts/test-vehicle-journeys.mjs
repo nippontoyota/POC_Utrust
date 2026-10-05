@@ -20,7 +20,7 @@ const client = (key = anon) => createClient(url, key, { auth: { persistSession: 
 const admin = client(process.env.SUPABASE_SERVICE_ROLE_KEY);
 const unwrap = ({ data, error }) => { assert.ifError(error); return data; };
 const allProfiles = unwrap(await admin.from("profiles").select("id,employee_id,role,branch_id,is_active"));
-const branches = unwrap(await admin.from("branches").select("id,code,name").order("display_order"));
+const branches = unwrap(await admin.from("branches").select("id,code,name,cluster_id").order("display_order"));
 if (mode === "--preflight") {
   const response = await fetch(`${baseURL}/login`);
   assert.equal(response.status, 200);
@@ -55,14 +55,30 @@ async function step(name, fn) {
 }
 if (!state.branches) {
   const free = branches.filter(b => !allProfiles.some(p => p.branch_id === b.id && p.role === "purchase_officer" && p.is_active));
-  assert(free.length >= 2, "Two branches without active POs are needed to avoid assigning tests to existing staff.");
-  state.branches = free.slice(0, 2);
+  const byCluster = new Map();
+  for (const b of free) {
+    if (!byCluster.has(b.cluster_id)) byCluster.set(b.cluster_id, []);
+    byCluster.get(b.cluster_id).push(b);
+  }
+  // Need two free branches sharing a cluster (Cluster Manager scope tests) plus
+  // a third free branch outside that cluster (to prove the scope has a limit).
+  const sameCluster = [...byCluster.values()].find(list => list.length >= 2);
+  assert(sameCluster, "Need two free branches sharing a cluster for Cluster Manager scope tests.");
+  const outsideCluster = free.find(b => b.cluster_id !== sameCluster[0].cluster_id);
+  assert(outsideCluster, "Need a third free branch in a different cluster for the Cluster Manager boundary test.");
+  state.branches = [sameCluster[0], sameCluster[1], outsideCluster];
 }
 await save();
 const definitions = {
-  so: ["sales_officer", 0], po: ["purchase_officer", 0], manager: ["manager", 0],
-  group: ["manager", 0, true], otherSo: ["sales_officer", 1], otherPo: ["purchase_officer", 1],
-  otherManager: ["manager", 1], broker1: ["broker"], broker2: ["broker"], pending: ["broker"],
+  so: { role: "sales_officer", branch: 0 },
+  po: { role: "purchase_officer", branch: 0 },
+  salesManager: { role: "sales_manager", branch: 0 },
+  clusterManager: { role: "cluster_manager", cluster: true },
+  admin: { role: "admin" },
+  otherSo: { role: "sales_officer", branch: 1 },
+  otherPo: { role: "purchase_officer", branch: 1 },
+  otherSalesManager: { role: "sales_manager", branch: 1 },
+  broker1: { role: "broker" }, broker2: { role: "broker" }, pending: { role: "broker" },
 };
 const actors = {};
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -91,7 +107,7 @@ async function login(key) {
   const authResponse = page.waitForResponse(r => r.url().includes("/auth/v1/token") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   assert((await authResponse).ok(), `${key}: password sign-in failed`);
-  const rolePath = account.role === "broker" ? "broker" : account.role === "sales_officer" ? "so" : account.role === "purchase_officer" ? "po" : "manager";
+  const rolePath = account.role === "broker" ? "broker" : account.role === "sales_officer" ? "so" : account.role === "purchase_officer" ? "po" : account.role === "admin" ? "admin" : "manager";
   try {
     await page.waitForURL(`**/${rolePath}/dashboard`, { timeout: 60000, waitUntil: "domcontentloaded" });
   } catch (error) {
@@ -297,17 +313,19 @@ async function staffAction(v, button, reason = "") {
   if (reason) await page.getByLabel("Selection / release / withdrawal reason").fill(`${run}: ${reason}`);
   await uiRPC(page, "broker_case_action", () => page.getByRole("button", { name: button, exact: true }).click());
 }
-async function managerAction(key, verb, reason) {
-  const page = actors.group.page;
+async function adminAction(key, verb, reason) {
+  const page = actors.admin.page;
   const b = unwrap(await admin.from("brokers").select("status,suspended_at").eq("id", actors[key].id).single());
-  await navigate(page, `/manager/brokers?status=${b.suspended_at ? "suspended" : b.status}`);
+  await navigate(page, `/admin/brokers?status=${b.suspended_at ? "suspended" : b.status}`);
   const article = page.getByRole("article").filter({ hasText: credentials.accounts[key].email });
   await article.getByLabel("Decision reason").fill(`${run}: ${reason}`);
   await uiRPC(page, "manage_broker", () => article.getByRole("button", { name: verb, exact: true }).click());
 }
 
+const SELF_SIGNUP_ROLES = new Set(["sales_officer", "purchase_officer"]);
 try {
-  for (const [key, [role, branchIndex, group]] of Object.entries(definitions)) {
+  for (const [key, def] of Object.entries(definitions)) {
+    const { role } = def;
     if (!credentials.accounts[key]) {
       assert.equal(mode, "--run-live", "Run --run-live to create the test fixture first.");
       const employeeId = role === "broker" ? undefined : `${run}${key.toUpperCase()}`;
@@ -325,23 +343,31 @@ try {
       }
       const api = client();
       unwrap(await api.auth.signInWithPassword({ email: account.email, password: credentials.password }));
-      if (role === "broker") unwrap(await api.from("brokers").insert({ id: account.id, company_name: account.company, contact_name: `${run} TEST CONTACT`, phone: "9000000000", email: account.email }));
-      else unwrap(await (role === "manager" ? admin : api).from("profiles").insert({ id: account.id, employee_id: account.employeeId, full_name: `${run} TEST ${key}`, role, branch_id: state.branches[branchIndex].id, is_group_manager: !!group }));
+      if (role === "broker") {
+        unwrap(await api.from("brokers").insert({ id: account.id, company_name: account.company, contact_name: `${run} TEST CONTACT`, phone: "9000000000", email: account.email }));
+      } else {
+        // Sales/Purchase Officer can self-insert their own profile; every other
+        // role (Manager family, Admin) is owner-provisioned only, so it needs
+        // the service-role client, same as scripts/seed-manager.mjs.
+        const scope = def.cluster ? { cluster_id: state.branches[0].cluster_id } : def.branch !== undefined ? { branch_id: state.branches[def.branch].id } : {};
+        unwrap(await (SELF_SIGNUP_ROLES.has(role) ? api : admin).from("profiles").insert({ id: account.id, employee_id: account.employeeId, full_name: `${run} TEST ${key}`, role, ...scope }));
+      }
     });
     const api = client();
     unwrap(await api.auth.signInWithPassword({ email: account.email, password: credentials.password }));
     actors[key] = { id: account.id, api };
   }
-  for (const key of ["so", "po", "manager", "group", "otherSo", "otherPo", "otherManager"]) await login(key);
+  for (const key of ["so", "po", "salesManager", "clusterManager", "admin", "otherSo", "otherPo", "otherSalesManager"]) await login(key);
   if (mode === "--run-live") {
-    await step("broker approvals and manager scope", async () => {
+    await step("broker approvals and admin/manager scope", async () => {
       await denied("pending", "broker_marketplace", {}, /Approved broker/i, "Pending broker cannot browse");
-      await denied("manager", "manage_broker", { p_broker_id: actors.broker1.id, p_action: "approve", p_reason: "Test" }, /group manager/i, "Branch manager cannot approve broker accounts");
+      await denied("salesManager", "manage_broker", { p_broker_id: actors.broker1.id, p_action: "approve", p_reason: "Test" }, /Active admin required/i, "Sales Manager cannot approve broker accounts");
+      await denied("clusterManager", "manage_broker", { p_broker_id: actors.broker1.id, p_action: "approve", p_reason: "Test" }, /Active admin required/i, "Cluster Manager cannot approve broker accounts");
       for (const key of ["broker1", "broker2"]) {
         const b = unwrap(await admin.from("brokers").select("status").eq("id", actors[key].id).single());
-        if (b.status === "pending") await managerAction(key, "approve", "Verified synthetic broker for workflow test");
+        if (b.status === "pending") await adminAction(key, "approve", "Verified synthetic broker for workflow test");
       }
-      await managerAction("pending", "reject", "Synthetic rejected application coverage");
+      await adminAction("pending", "reject", "Synthetic rejected application coverage");
       await denied("pending", "broker_marketplace", {}, /Approved broker/i, "Rejected broker cannot browse");
     });
   }
@@ -423,11 +449,11 @@ try {
     await step("consent: suspension releases lock; reactivation and delisting", async () => {
       await bid("broker2", "consent", 685000);
       const hold = await selectBid("consent", "broker2");
-      await managerAction("broker2", "suspend", "Synthetic suspension during active reservation");
+      await adminAction("broker2", "suspend", "Synthetic suspension during active reservation");
       await denied("broker2", "broker_marketplace", {}, /Approved broker/i, "Suspended broker loses marketplace access");
       const ended = unwrap(await admin.from("broker_reservations").select("status").eq("id", hold.id).single());
       check(ended.status === "released", "Suspension releases the broker's active hold");
-      await managerAction("broker2", "reactivate", "Synthetic suspension check complete");
+      await adminAction("broker2", "reactivate", "Synthetic suspension check complete");
       const offers = unwrap(await admin.from("broker_offers").select("status").eq("case_id", state.cases.consent.id));
       check(offers.every(o => o.status === "withdrawn"), "Reactivation does not resurrect old bids");
       await bid("broker2", "consent", 690000);
@@ -478,20 +504,20 @@ try {
       assert(events.some(e => e.event_type === type && e.actor_id && e.actor_role), `${v.key}: missing ${type} actor/audit`);
     }
     check(true, `${v.key}: expected journey events and acting roles persisted`);
-    await navigate(actors.group.page, `/manager/cases/${c.id}`);
-    await expect(actors.group.page.getByText(`${run} TEST ONLY ${v.index} - ${v.name}`, { exact: true })).toBeVisible();
-    await expect(actors.group.page.getByRole("heading", { name: "Activity Log", exact: true })).toBeVisible();
-    await expect.poll(() => actors.group.page.locator("main img:visible").evaluateAll(images =>
+    await navigate(actors.clusterManager.page, `/manager/cases/${c.id}`);
+    await expect(actors.clusterManager.page.getByText(`${run} TEST ONLY ${v.index} - ${v.name}`, { exact: true })).toBeVisible();
+    await expect(actors.clusterManager.page.getByRole("heading", { name: "Activity Log", exact: true })).toBeVisible();
+    await expect.poll(() => actors.clusterManager.page.locator("main img:visible").evaluateAll(images =>
       images.length === 7 && images.every(img => img.complete && img.naturalWidth > 0)), { timeout: 20000 }).toBe(true);
     check(true, `${v.key}: all seven stored images render in manager UI`);
-    const activity = actors.group.page.getByRole("region", { name: "Activity Log", exact: true });
+    const activity = actors.clusterManager.page.getByRole("region", { name: "Activity Log", exact: true });
     for (const role of new Set(events.map(e => e.actor_role).filter(Boolean))) {
       await expect(activity.getByText(role.replaceAll("_", " "), { exact: true }).first()).toBeVisible();
     }
     for (const event of events) {
       if (event.notes) await expect(activity.getByText(event.notes, { exact: true }).first()).toBeVisible();
     }
-    await actors.group.page.screenshot({ path: resolve(output, `${v.key}-manager.png`), fullPage: true });
+    await actors.clusterManager.page.screenshot({ path: resolve(output, `${v.key}-manager.png`), fullPage: true });
     check(true, `${v.key}: manager detail and activity log render`);
   }
   console.log("VERIFY access boundaries and real photo downloads");
@@ -501,15 +527,15 @@ try {
     check(wrong.length === 0, "Other SO cannot read a colleague's case");
     const wrongPO = unwrap(await actors.otherPo.api.from("cases").select("id").eq("id", id));
     check(wrongPO.length === 0, "Unassigned PO cannot read the case");
-    const wrongManager = unwrap(await actors.otherManager.api.from("cases").select("id").eq("id", id));
-    check(wrongManager.length === 0, "Branch manager cannot read another branch's case");
+    const wrongSalesManager = unwrap(await actors.otherSalesManager.api.from("cases").select("id").eq("id", id));
+    check(wrongSalesManager.length === 0, "Sales Manager cannot read another branch's case");
     for (const table of ["cases", "case_photos", "broker_offers", "broker_reservations"]) {
       check(unwrap(await actors.broker1.api.from(table).select("id")).length === 0, `Broker cannot read raw ${table}`);
     }
     await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Wrong owner" } }, /Not authorized/i, "Other SO cannot change broker workflow");
-    await denied("broker1", "broker_report", {}, /manager/i, "Broker cannot read manager reports");
+    await denied("broker1", "broker_report", {}, /Active cluster manager required/i, "Broker cannot read manager reports");
     const rc = state.cases.hold.rcPhoto;
-    for (const [key, expected] of [["broker1", 403], ["otherManager", 403], ["po", 200], ["manager", 200]]) {
+    for (const [key, expected] of [["broker1", 403], ["otherSalesManager", 403], ["po", 200], ["salesManager", 200]]) {
       const res = await actors[key].page.request.get(`/api/photos/${rc}/signed-url`);
       check(res.status() === expected, `${key}: RC endpoint returns ${expected}`);
       if (expected === 200) {
@@ -525,19 +551,18 @@ try {
     const image = await actors.broker1.page.request.get((await response.json()).url);
     check(image.ok(), "Broker can load the approved vehicle image from storage");
   }
-  const groupReport = unwrap(await rpc("group", "broker_report", {}));
+  const clusterReport = unwrap(await rpc("clusterManager", "broker_report", {}));
   const adminEvents = unwrap(await admin.from("broker_admin_events").select("broker_id,actor_id,action,reason,created_at")
     .in("broker_id", [actors.broker1.id, actors.broker2.id, actors.pending.id]).order("created_at"));
   for (const [key, verb] of [["broker1", "approve"], ["broker2", "approve"], ["pending", "reject"], ["broker2", "suspend"], ["broker2", "reactivate"]]) {
-    check(adminEvents.some(e => e.broker_id === actors[key].id && e.actor_id === actors.group.id && e.action === verb && e.reason.startsWith(run)), `${key}: ${verb} audit contains group manager and reason`);
+    check(adminEvents.some(e => e.broker_id === actors[key].id && e.actor_id === actors.admin.id && e.action === verb && e.reason.startsWith(run)), `${key}: ${verb} audit contains the admin's id and reason`);
   }
-  const branchReport = unwrap(await rpc("manager", "broker_report", {}));
-  check(groupReport.cases.some(c => c.id === state.cases.broker.id), "Group manager report includes cross-branch broker sale");
-  check(!branchReport.cases.some(c => c.id === state.cases.broker.id), "Branch manager report excludes other branch's sale");
+  await denied("salesManager", "broker_report", {}, /Active cluster manager required/i, "Sales Manager has no broker_report access at all");
+  check(clusterReport.cases.some(c => c.id === state.cases.broker.id), "Cluster Manager report includes a sale from another branch in the same cluster");
   const completed = unwrap(await admin.from("broker_reservations").select("*").eq("case_id", state.cases.broker.id).eq("status", "completed"));
   check(completed.length === 1 && completed[0].amount === 650000 && completed[0].payment_complete && completed[0].handover_complete, "Completed sale has one price snapshot with payment and handover recorded");
-  const ownReport = unwrap(await rpc("group", "broker_report", { p_broker: actors.broker1.id }));
-  check(ownReport.completed === 1 && ownReport.deal_value === 650000, "Manager broker filter counts completed test sale once at INR 650000");
+  const ownReport = unwrap(await rpc("clusterManager", "broker_report", { p_broker: actors.broker1.id }));
+  check(ownReport.completed === 1 && ownReport.deal_value === 650000, "Cluster Manager broker filter counts completed test sale once at INR 650000");
   if (Date.parse(state.cases.hold.expiresAt) > Date.now()) {
     for (const key of ["broker1", "broker2"]) {
       const page = actors[key].page;
@@ -550,8 +575,9 @@ try {
     }
   }
   for (const [key, paths] of [
-    ["group", ["/manager/dashboard", "/manager/marketplace", `/manager/cases?q=${run}`, "/manager/brokers?status=approved"]],
-    ["manager", ["/manager/dashboard", "/manager/marketplace", `/manager/cases?q=${run}`]],
+    ["clusterManager", ["/manager/dashboard", "/manager/marketplace", `/manager/cases?q=${run}`]],
+    ["admin", ["/admin/dashboard", "/admin/users", "/admin/brokers?status=approved"]],
+    ["salesManager", ["/manager/dashboard", `/manager/cases?q=${run}`]],
     ["so", ["/so/dashboard", "/so/cases"]], ["otherSo", ["/so/dashboard", "/so/cases"]],
     ["po", ["/po/dashboard", "/po/cases"]], ["otherPo", ["/po/dashboard", "/po/cases"]],
     ["broker1", ["/broker/dashboard", "/broker/offers", "/broker/reservations", "/broker/history"]],
@@ -565,16 +591,16 @@ try {
       check(true, `${key}: ${path} loads without application errors`);
     }
   }
-  const groupPage = actors.group.page;
+  const clusterManagerPage = actors.clusterManager.page;
   await login("pending");
   await expect(actors.pending.page.getByRole("heading", { name: "Application not approved", exact: true })).toBeVisible();
   check(true, "Rejected broker login shows restricted account screen");
-  await navigate(groupPage, `/manager/cases?q=${run}`);
-  await expect(groupPage.locator("tbody tr")).toHaveCount(scenarios.length);
-  await groupPage.screenshot({ path: resolve(output, "all-vehicles-desktop.png"), fullPage: true });
-  await groupPage.setViewportSize({ width: 390, height: 844 });
-  await groupPage.screenshot({ path: resolve(output, "all-vehicles-mobile.png"), fullPage: true });
-  check(await groupPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Manager case list fits mobile viewport");
+  await navigate(clusterManagerPage, `/manager/cases?q=${run}`);
+  await expect(clusterManagerPage.locator("tbody tr")).toHaveCount(scenarios.length);
+  await clusterManagerPage.screenshot({ path: resolve(output, "all-vehicles-desktop.png"), fullPage: true });
+  await clusterManagerPage.setViewportSize({ width: 390, height: 844 });
+  await clusterManagerPage.screenshot({ path: resolve(output, "all-vehicles-mobile.png"), fullPage: true });
+  check(await clusterManagerPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "Manager case list fits mobile viewport");
   await actors.broker1.page.setViewportSize({ width: 390, height: 844 });
   await navigate(actors.broker1.page, `/broker/vehicles/${state.cases.release.id}`);
   await actors.broker1.page.screenshot({ path: resolve(output, "broker-bidding-mobile.png"), fullPage: true });
