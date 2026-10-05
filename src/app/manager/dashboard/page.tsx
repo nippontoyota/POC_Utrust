@@ -140,7 +140,7 @@ export default async function ManagerDashboardPage() {
       ? evaluationTurnarounds.reduce((a, b) => a + b, 0) / evaluationTurnarounds.length
       : null;
 
-  const statusOrder: CaseStatus[] = [
+  const directRouteStatuses: CaseStatus[] = [
     "pending_evaluation",
     "pending_customer_decision",
     "purchase_completion_pending",
@@ -148,11 +148,19 @@ export default async function ManagerDashboardPage() {
     "cancelled",
     "withdrawn",
     "rejected_not_listed",
+  ];
+  const brokerRouteStatuses: CaseStatus[] = [
     "listed_for_brokers",
     "broker_offer_selected",
     "no_broker_interest",
     "broker_deal_closed",
   ];
+  // Sales Manager has no broker reporting/analytics anywhere else in their
+  // view, so the broker-route statuses are dropped here too, not just hidden
+  // on the stat cards above. Cluster Manager keeps the full breakdown.
+  const statusOrder: CaseStatus[] = isClusterManager
+    ? [...directRouteStatuses, ...brokerRouteStatuses]
+    : directRouteStatuses;
 
   return (
     <div className="space-y-6">
