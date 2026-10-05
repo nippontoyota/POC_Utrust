@@ -12,6 +12,7 @@ import { FormField, inputClass } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { MOBILE_PATTERN, isValidMobile, normalizeMobile } from "@/lib/validation";
 import { VEHICLE_MAKES } from "@/lib/vehicleModels";
+import { getVehicleColors } from "@/lib/vehicleColors";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
@@ -56,6 +57,7 @@ export function CaseWorkspace({
     make: initialCase.make ?? "",
     model: initialCase.model ?? "",
     variant: initialCase.variant ?? "",
+    color: initialCase.color ?? "",
     registration_year: initialCase.registration_year?.toString() ?? "",
     fuel_type: (initialCase.fuel_type ?? "") as Enums<"fuel_type"> | "",
     transmission: (initialCase.transmission ?? "") as Enums<"transmission_type"> | "",
@@ -74,7 +76,10 @@ export function CaseWorkspace({
   const [savedMessage, setSavedMessage] = useState(false);
   const [otherMake, setOtherMake] = useState(false);
   const [otherModel, setOtherModel] = useState(false);
+  const [otherColor, setOtherColor] = useState(false);
   const models = VEHICLE_MAKES.find(({ make }) => make === fields.make)?.models ?? [];
+  const colors = getVehicleColors(fields.make, fields.model);
+  const hasVehicle = !!fields.make.trim() && !!fields.model.trim();
 
   function update<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
     setFields((f) => ({ ...f, [key]: value }));
@@ -92,7 +97,6 @@ export function CaseWorkspace({
       ["transmission", "Transmission is required."],
       ["odometer_km", "Odometer reading is required."],
       ["has_loan", "Loan / hypothecation status is required."],
-      ["customer_expected_price", "Customer expected price is required."],
     ];
 
     if (requireComplete) {
@@ -135,6 +139,7 @@ export function CaseWorkspace({
       make: fields.make || null,
       model: fields.model || null,
       variant: fields.variant.trim() || null,
+      color: fields.color.trim() || null,
       registration_year: fields.registration_year ? parseInt(fields.registration_year, 10) : null,
       fuel_type: fields.fuel_type || null,
       transmission: fields.transmission || null,
@@ -404,7 +409,8 @@ export function CaseWorkspace({
                 const isOther = e.target.value === "__other__";
                 setOtherMake(isOther);
                 setOtherModel(false);
-                setFields((f) => ({ ...f, make: isOther ? "" : e.target.value, model: "", variant: "" }));
+                setOtherColor(false);
+                setFields((f) => ({ ...f, make: isOther ? "" : e.target.value, model: "", variant: "", color: "" }));
               }}
               className={inputClass}
             >
@@ -422,7 +428,10 @@ export function CaseWorkspace({
                 type="text"
                 disabled={!isDraft}
                 value={fields.make}
-                onChange={(e) => setFields((f) => ({ ...f, make: e.target.value, model: "", variant: "" }))}
+                onChange={(e) => {
+                  setOtherColor(false);
+                  setFields((f) => ({ ...f, make: e.target.value, model: "", variant: "", color: "" }));
+                }}
                 placeholder="Enter make"
                 className={inputClass}
               />
@@ -435,7 +444,8 @@ export function CaseWorkspace({
               onChange={(e) => {
                 const isOther = e.target.value === "__other__";
                 setOtherModel(isOther);
-                setFields((f) => ({ ...f, model: isOther ? "" : e.target.value, variant: "" }));
+                setOtherColor(false);
+                setFields((f) => ({ ...f, model: isOther ? "" : e.target.value, variant: "", color: "" }));
               }}
               className={inputClass}
             >
@@ -453,7 +463,10 @@ export function CaseWorkspace({
                 type="text"
                 disabled={!isDraft || !fields.make.trim()}
                 value={fields.model}
-                onChange={(e) => update("model", e.target.value)}
+                onChange={(e) => {
+                  setOtherColor(false);
+                  setFields((f) => ({ ...f, model: e.target.value, color: "" }));
+                }}
                 placeholder="Enter model"
                 className={inputClass}
               />
@@ -469,6 +482,38 @@ export function CaseWorkspace({
               className={inputClass}
             />
           </FormField>
+          <FormField label="Colour">
+            <select
+              disabled={!isDraft || !hasVehicle}
+              value={otherColor ? "__other__" : fields.color}
+              onChange={(e) => {
+                const isOther = e.target.value === "__other__";
+                setOtherColor(isOther);
+                update("color", isOther ? "" : e.target.value);
+              }}
+              className={inputClass}
+            >
+              <option value="">{!hasVehicle ? "Select make and model first" : colors.length ? "Select colour..." : "Choose Other to enter colour"}</option>
+              {fields.color && !otherColor && !colors.includes(fields.color) && (
+                <option value={fields.color}>{fields.color}</option>
+              )}
+              {colors.map((color) => <option key={color} value={color}>{color}</option>)}
+              <option value="__other__">Other</option>
+            </select>
+          </FormField>
+          {otherColor && (
+            <FormField label="Other colour">
+              <input
+                type="text"
+                disabled={!isDraft || !hasVehicle}
+                value={fields.color}
+                onChange={(e) => update("color", e.target.value)}
+                placeholder="Enter manufacturer paint name"
+                maxLength={100}
+                className={inputClass}
+              />
+            </FormField>
+          )}
           <FormField label="Registration year" required>
             <input
               type="number"
@@ -556,7 +601,7 @@ export function CaseWorkspace({
               />
             </FormField>
           )}
-          <FormField label="Customer expected price (INR)" required>
+          <FormField label="Customer expected price (INR)">
             <input
               type="number"
               disabled={!isDraft}
@@ -565,6 +610,7 @@ export function CaseWorkspace({
               step={1}
               value={fields.customer_expected_price}
               onChange={(e) => update("customer_expected_price", e.target.value)}
+              placeholder="Optional"
               className={inputClass}
             />
           </FormField>

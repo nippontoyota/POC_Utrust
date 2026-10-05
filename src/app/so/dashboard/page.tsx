@@ -13,7 +13,7 @@ export default async function SoDashboardPage() {
 
   const [{ count: awaitingDecisionCount }, { count: totalCount }, { data: brokerCounts, error: brokerError }] = await Promise.all([
     supabase.from("cases").select("id", { count: "exact", head: true }).eq("status", "pending_customer_decision"),
-    supabase.from("cases").select("id", { count: "exact", head: true }),
+    supabase.from("cases").select("id", { count: "exact", head: true }).neq("status", "draft"),
     supabase.rpc("so_broker_summary", {}),
   ]);
 
@@ -40,9 +40,9 @@ export default async function SoDashboardPage() {
           icon={Clock}
           href="/so/cases?status=pending_customer_decision"
         />
-        <StatCard label="Open broker cases" value={brokerCounts?.listed ?? "Unavailable"} icon={LayoutList} href="/so/cases" />
-        <StatCard label="Active broker reservations" value={brokerCounts?.reserved ?? "Unavailable"} icon={Clock} href="/so/cases" />
-        <StatCard label="Broker holds expiring within 2 hours" value={brokerCounts?.expiring ?? "Unavailable"} icon={Clock} href="/so/cases" />
+        <StatCard label="Open broker cases" value={brokerCounts?.listed ?? "Unavailable"} icon={LayoutList} href="/so/cases?broker=open" />
+        <StatCard label="Active broker reservations" value={brokerCounts?.reserved ?? "Unavailable"} icon={Clock} href="/so/cases?broker=reserved" />
+        <StatCard label="Broker holds expiring within 2 hours" value={brokerCounts?.expiring ?? "Unavailable"} icon={Clock} href="/so/cases?broker=expiring" />
       </div>
       {brokerError && <BrokerLoadError error={brokerError} />}
 

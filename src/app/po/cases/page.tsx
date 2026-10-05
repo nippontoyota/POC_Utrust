@@ -13,17 +13,18 @@ import type { Enums } from "@/lib/supabase/database.types";
 export default async function PoCasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; overdue?: string }>;
+  searchParams: Promise<{ status?: string; overdue?: string; evaluation?: string }>;
 }) {
-  const { status, overdue: overdueFilter } = await searchParams;
+  const { status, overdue: overdueFilter, evaluation } = await searchParams;
   const supabase = await createClient();
 
   let query = supabase
     .from("cases")
     .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, submitted_at, evaluation_started_at")
+    .neq("status", "draft")
     .order("submitted_at", { ascending: false, nullsFirst: false });
 
-  if (overdueFilter) {
+  if (overdueFilter || evaluation) {
     query = query.eq("status", "pending_evaluation");
   } else if (status) {
     query = query.eq("status", status as Enums<"case_status">);
@@ -32,7 +33,19 @@ export default async function PoCasesPage({
   const { data: allCases } = await query;
   const cases = overdueFilter
     ? allCases?.filter((c) => isOverdue(c.submitted_at, 2))
+    : evaluation === "awaiting"
+      ? allCases?.filter((c) => !c.evaluation_started_at)
+      : evaluation === "in_progress"
+        ? allCases?.filter((c) => c.evaluation_started_at)
     : allCases;
+  const filterLabel =
+    overdueFilter
+      ? "Overdue (>2 business days)"
+      : evaluation === "awaiting"
+        ? "Awaiting your evaluation"
+        : evaluation === "in_progress"
+          ? "Evaluations in progress"
+          : CASE_STATUS_LABELS[status as Enums<"case_status">] ?? status;
 
   return (
     <div className="space-y-5">
@@ -42,12 +55,12 @@ export default async function PoCasesPage({
         description="Review assigned vehicles, start evaluation, and submit offer prices for customer follow-up."
       />
 
-      {(status || overdueFilter) && (
+      {(status || overdueFilter || evaluation) && (
         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
           <span>
             Filtered by:{" "}
             <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {overdueFilter ? "Overdue (>2 business days)" : CASE_STATUS_LABELS[status as Enums<"case_status">] ?? status}
+              {filterLabel}
             </span>
           </span>
           <Link
@@ -60,7 +73,7 @@ export default async function PoCasesPage({
       )}
 
       {!cases || cases.length === 0 ? (
-        <EmptyState message={status || overdueFilter ? "No cases match this filter." : "No cases assigned to you yet."} />
+        <EmptyState message={status || overdueFilter || evaluation ? "No cases match this filter." : "No cases assigned to you yet."} />
       ) : (
         <>
           <div className="space-y-3 md:hidden">

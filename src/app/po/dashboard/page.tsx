@@ -9,7 +9,7 @@ export default async function PoDashboardPage() {
   const supabase = await createClient();
 
   const [{ count: totalCount }, { data: pendingCases }] = await Promise.all([
-    supabase.from("cases").select("id", { count: "exact", head: true }),
+    supabase.from("cases").select("id", { count: "exact", head: true }).neq("status", "draft"),
     supabase.from("cases").select("id, submitted_at, evaluation_started_at").eq("status", "pending_evaluation"),
   ]);
 
@@ -31,7 +31,7 @@ export default async function PoDashboardPage() {
           value={pendingCount}
           tone={pendingCount > 0 ? "accent" : "default"}
           icon={ClipboardList}
-          href="/po/cases?status=pending_evaluation"
+          href="/po/cases?evaluation=awaiting"
         />
         <StatCard
           label="Overdue (>2 business days)"
@@ -41,7 +41,7 @@ export default async function PoDashboardPage() {
           href="/po/cases?overdue=1"
         />
         <StatCard label="Total assigned cases" value={totalCount ?? 0} icon={LayoutList} href="/po/cases" />
-        <StatCard label="Evaluations in progress" value={inProgressCount} icon={ClipboardList} href="/po/cases?status=pending_evaluation" />
+        <StatCard label="Evaluations in progress" value={inProgressCount} icon={ClipboardList} href="/po/cases?evaluation=in_progress" />
       </div>
 
       <Link

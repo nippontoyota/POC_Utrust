@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LayoutList, AlertTriangle, CheckCircle2, Wallet, Timer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
@@ -75,19 +76,21 @@ export default async function ManagerDashboardPage() {
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
-        <StatCard label="Total active + closed cases" value={rows.length} icon={LayoutList} />
+        <StatCard label="Total active + closed cases" value={rows.length} icon={LayoutList} href="/manager/cases" />
         <StatCard
           label="Overdue evaluations"
           value={overdueCount}
           tone={overdueCount > 0 ? "danger" : "default"}
           icon={AlertTriangle}
+          href="/manager/cases?status=pending_evaluation"
         />
-        <StatCard label="Direct closed deals" value={closedCases.length} icon={CheckCircle2} />
-        <StatCard label="Direct deal value" value={formatINR(closedValue)} icon={Wallet} />
+        <StatCard label="Direct closed deals" value={closedCases.length} icon={CheckCircle2} href="/manager/cases?status=closed" />
+        <StatCard label="Direct deal value" value={formatINR(closedValue)} icon={Wallet} href="/manager/cases?status=closed" />
         <StatCard
           label="Avg. PO turnaround"
           value={avgEvaluationHours !== null ? `${avgEvaluationHours.toFixed(1)} hrs` : "—"}
           icon={Timer}
+          href="/manager/cases"
         />
       </div>
       {brokerError && <BrokerLoadError error={brokerError} />}
@@ -95,22 +98,23 @@ export default async function ManagerDashboardPage() {
         <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
         <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />
         <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
-        <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} />
+        <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} href="/manager/cases?status=pending_customer_decision" />
       </div>
 
       <Card>
         <CardTitle>Cases by Status</CardTitle>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {statusOrder.map((status) => (
-            <div
+            <Link
               key={status}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3"
-          >
+              href={`/manager/cases?status=${status}`}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3 transition hover:border-[var(--brand)]"
+            >
               <span className="text-sm font-medium text-[var(--muted)]">{CASE_STATUS_LABELS[status]}</span>
               <span className="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
                 {statusCounts[status] ?? 0}
               </span>
-            </div>
+            </Link>
           ))}
         </div>
       </Card>

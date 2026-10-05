@@ -37,13 +37,15 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order. For an installation through `0011`, apply `supabase/migrations/0012_broker_marketplace.sql`, `0013_broker_reporting.sql`, `0014_required_rc_book_photo.sql`, and `0015_optional_case_variant.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` allows case submission without a vehicle variant.
+1. Apply migrations in numeric order through `supabase/migrations/0016_case_color_optional_expected_price.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission.
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
 3. A group manager approves applications under **Broker Access**. Branch managers have scoped reporting but cannot approve or suspend marketplace accounts. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
 4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
 5. Verify one complete flow with SO, PO, broker, branch-manager, and group-manager accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
 
 Required `.env.local` entries: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and server-only `SUPABASE_SERVICE_ROLE_KEY`. If Turbopack cannot start its worker, use `npm run dev -- --webpack` and `npm run build -- --webpack`.
+
+SO colour suggestions are keyed by make and model in `src/lib/vehicleColors.ts`, with the official source beside each palette. They cover selected model-year palettes, not every historical trim; unlisted models or shades use **Other** for manual entry. Changing make or model clears the previous colour. Both variant and customer expected price may be left blank.
 
 Check the scheduler with:
 

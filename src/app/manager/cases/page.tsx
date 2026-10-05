@@ -21,6 +21,7 @@ export default async function ManagerCasesPage({
   let query = supabase
     .from("cases")
     .select("id, case_ref, customer_name, customer_mobile, vehicle_reg_number, status, customer_expected_price, branches(name)")
+    .neq("status", "draft")
     .order("created_at", { ascending: false });
 
   if (status) {
@@ -59,7 +60,7 @@ export default async function ManagerCasesPage({
           className="rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100"
         >
           <option value="">All statuses</option>
-          {Object.entries(CASE_STATUS_LABELS).map(([value, label]) => (
+          {Object.entries(CASE_STATUS_LABELS).filter(([value]) => value !== "draft").map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>

@@ -247,6 +247,7 @@ export type Database = {
       }
       cases: {
         Row: {
+          color: string | null
           evaluation_started_at: string | null
           assigned_po_id: string | null
           branch_id: string
@@ -285,6 +286,7 @@ export type Database = {
           withdrawn_reason: string | null
         }
         Insert: {
+          color?: string | null
           assigned_po_id?: string | null
           branch_id: string
           broker_consent?: boolean | null
@@ -322,6 +324,7 @@ export type Database = {
           withdrawn_reason?: string | null
         }
         Update: {
+          color?: string | null
           assigned_po_id?: string | null
           branch_id?: string
           broker_consent?: boolean | null
