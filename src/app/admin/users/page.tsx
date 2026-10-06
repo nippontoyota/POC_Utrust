@@ -16,6 +16,7 @@ const ROLE_LABELS: Record<string, string> = {
   sales_manager: "Sales Manager",
   cluster_manager: "Cluster Manager",
   po_manager: "PO Manager",
+  broker_coordinator: "Broker Coordinator",
   admin: "Admin",
 };
 

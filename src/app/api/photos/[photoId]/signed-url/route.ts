@@ -55,6 +55,7 @@ export async function GET(
       const { data: branch } = await service.from("branches").select("cluster_id").eq("id", caseRow.branch_id).single();
       if (branch?.cluster_id === profile.cluster_id) authorized = true;
     }
+    if (profile.role === "broker_coordinator" && caseRow.broker_consent) authorized = true;
   } else if (!profile && broker && broker.status === "approved" && !broker.suspended_at) {
     // Brokers only ever see plate-hidden photos on listed cases -- never the
     // reverse. This is the one place that rule is enforced, deliberately

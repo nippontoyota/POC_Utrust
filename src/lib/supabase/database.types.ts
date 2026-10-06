@@ -611,6 +611,7 @@ export type Database = {
         | "cluster_manager"
         | "po_manager"
         | "admin"
+        | "broker_coordinator"
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"

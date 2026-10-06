@@ -37,11 +37,11 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Broker Marketplace Setup
 
-1. Apply migrations in numeric order through `supabase/migrations/0024_remove_manager_role.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles; `0022`-`0023` add the Admin role; `0024` removes the original `manager` role entirely, now that Sales/Cluster/PO Manager cover every case it did (see "Manager Sub-Types" and "Admin Role" below).
+1. Apply migrations in numeric order through `supabase/migrations/0029_remove_so_photo_gate_on_reject.sql` using the Supabase SQL editor or migration runner before deploying the updated app. Migration `0015` makes variant optional; `0016` makes customer expected price optional and adds the vehicle colour column and its draft-editing permission; `0017` adds the customer counter-offer fields; `0018`-`0021` add the Sales Manager / Cluster Manager / PO Manager roles; `0022`-`0023` add the Admin role; `0024` removes the original `manager` role entirely; `0026` adds vehicle registration year/number limits; `0027`-`0029` add the Broker Coordinator role and move all broker-marketplace write access from the Sales Officer to it (see "Manager Sub-Types", "Admin Role", and "Broker Coordinator Role" below).
 2. Enable Supabase Cron (`pg_cron`) and execute `supabase/setup-broker-cron.sql` as the database owner. It schedules expiry every minute and is safe to rerun.
 3. An **Admin** approves applications under **Brokers**. Managers have read-only Broker Performance reporting only (Cluster Manager, since `0024`) and cannot approve, reject, or suspend brokers. Staff sign in with Employee ID; brokers use the Broker login tab and email/password. Broker IDs are reference numbers, not credentials.
-4. The owning SO reviews photos in the case's **Broker Marketplace** section. All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
-5. Verify one complete flow with SO, PO, broker, Sales Manager, and Cluster Manager accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
+4. A **Broker Coordinator** reviews photos in the case's **Broker Marketplace** section once the case is listed (see "Broker Coordinator Role" below — the Sales Officer no longer has write access here, since `0027`-`0029`). All existing images start private. Listings remain hidden until at least one image is explicitly approved. Plate-visible images cannot be approved; review also confirms there are no personal details or documents.
+5. Verify one complete flow with SO, PO, broker, Sales Manager, Cluster Manager, and Broker Coordinator accounts in your deployment environment. The isolated test suite below does not apply migrations or create users in your connected Supabase project.
 
 Required `.env.local` entries: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and server-only `SUPABASE_SERVICE_ROLE_KEY`. If Turbopack cannot start its worker, use `npm run dev -- --webpack` and `npm run build -- --webpack`.
 
@@ -100,13 +100,29 @@ node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>
 
 From there, that Admin account can create every other account (including additional Admins) through the UI.
 
+## Broker Coordinator Role
+
+A separate `broker_coordinator` role (`/coordinator/*`) owns the entire broker-marketplace workflow for any case that has been rejected and listed. Company-wide scope, like PO Manager and Admin — one account (or more) covers every branch.
+
+The split with Sales Officer is exact: the **Sales Officer records the customer's reject + broker-consent decision** (`record_customer_decision`, unchanged) — that's the one piece of broker-route information only the SO is physically present to capture. The moment that flips a case to `listed_for_brokers`, **Broker Coordinator owns everything downstream**: approving photos for marketplace visibility, selecting which broker's offer to go with, recording the customer's decision on that broker's price, confirming payment/handover to close the deal, releasing holds, and withdrawing consent. The Sales Officer never had write access to any of this, even before the handoff point (no pre-review) — their case page shows the same Broker Marketplace panel read-only, so they can still track progress on a case they originated.
+
+This is enforced in the database, not just the UI: `review_broker_photo()` and the staff side of `broker_case_action()` (`select`, `withdraw_consent`, and the `accept`/`reject`/`release`/`complete` branch) now require an active `broker_coordinator`, not the case's own SO. Read access to a case (`cases`, `case_photos`, `case_offers`, `case_events`) is granted once `broker_consent` is true, via the same `manager_case_access()` function the Manager family and PO Manager use.
+
+One knock-on fix, worth knowing about: an earlier migration (`0025`) had made `record_customer_decision()` require an approved broker-visible photo before a case could be listed, on the assumption the SO would review photos themselves right before listing. That's now unsatisfiable (SO never reviews photos), so `0029` removes that precondition — the underlying concern (a listing sitting invisible with zero photos) is still handled downstream, since `broker_marketplace()` already won't show a listing to brokers until a photo is approved; getting one approved is simply the first thing on a Broker Coordinator's queue for every case.
+
+Provisioning is through the Admin UI, same as every other manager-family role, or via script:
+
+```bash
+node scripts/seed-manager.mjs broker_coordinator <employeeId> <fullName> <password>
+```
+
 ## Broker Workflow and Access
 
 - SO uploads 6-10 vehicle photos plus a required RC book photo (one image, maximum 5MB) before submitting to an assigned branch PO. The RC image does not count toward the vehicle-photo minimum or limit and is never available to brokers. Existing submitted cases do not need retrospective uploads. The PO explicitly starts evaluation before submitting an immutable inspection and price.
-- Customer acceptance of the PO offer follows the existing direct-purchase completion flow. Rejection plus consent enables broker listing.
+- Customer acceptance of the PO offer follows the existing direct-purchase completion flow. Rejection plus consent enables broker listing; SO's involvement ends there (see "Broker Coordinator Role" above).
 - Approved, unsuspended brokers browse across branches and submit private offers. They receive their own amount/history, vehicle specifications, location, approved photos, and availability. Customer contacts, expected price, PO valuation, competing offers, and raw cases/events remain private.
-- SO selects an offer, with a reason required for choosing a lower price. Selection snapshots the amount and starts an exclusive 48 elapsed hours, including weekends. Offers are frozen during the hold.
-- Customer acceptance belongs to the reservation and does not extend it. SO confirms payment and handover before the deadline to close the broker deal.
+- Broker Coordinator selects an offer, with a reason required for choosing a lower price. Selection snapshots the amount and starts an exclusive 48 elapsed hours, including weekends. Offers are frozen during the hold.
+- Customer acceptance belongs to the reservation and does not extend it. Broker Coordinator confirms payment and handover before the deadline to close the broker deal.
 - Rejection, release, or expiry reopens bidding and requires earlier current/selected offers to be reconfirmed. Customer consent withdrawal delists the case. Suspension denies access, withdraws offers, and releases active holds; reactivation never resurrects them.
 - Sales Managers inspect their own branch's history; Cluster Managers see every branch in their cluster, including broker performance reporting. Account decisions and case actions have database audit records.
 
@@ -139,9 +155,9 @@ Coverage includes privacy/RLS, photo review, scoped reports, approval/suspension
 
 ## Persistent Vehicle Journey Tests
 
-`scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, Sales Managers, a Cluster Manager, an Admin, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
+`scripts/test-vehicle-journeys.mjs` exercises the running app with separate browser sessions for Sales Officers, Purchase Officers, Sales Managers, a Cluster Manager, an Admin, a Broker Coordinator, and competing brokers. It keeps clearly labelled synthetic accounts, vehicles, uploaded images, offers, reservations, and audit events in the connected Supabase project for later inspection. No real vehicle inspection or payment takes place.
 
-Since `0024`, the fixture picks two free branches that share a cluster (for Cluster Manager scope coverage) plus a third free branch in a different cluster (to prove that scope has a limit), and provisions a Cluster Manager and an Admin account instead of a branch/group manager. Broker approval now goes through the Admin account at `/admin/brokers` rather than a group manager at the old `/manager/brokers`.
+Since `0024`, the fixture picks two free branches that share a cluster (for Cluster Manager scope coverage) plus a third free branch in a different cluster (to prove that scope has a limit), and provisions a Cluster Manager and an Admin account instead of a branch/group manager. Broker approval now goes through the Admin account at `/admin/brokers` rather than a group manager at the old `/manager/brokers`. Since `0027`-`0029`, all broker-marketplace actions (photo review, offer selection, broker-price decision, deal completion) go through a dedicated Broker Coordinator account instead of the Sales Officer — the SO account only ever sees that panel read-only now, and the suite proves it's denied write access there.
 
 The default run is `QA20261003A`. In **Manager > All Cases**, search for that marker, or open `/manager/cases?q=QA20261003A`. Case detail shows the saved activity log, acting roles, decision reasons, prices, and broker reservation history. SO and PO accounts see their own branch assignments; brokers see their own bids and reservations.
 

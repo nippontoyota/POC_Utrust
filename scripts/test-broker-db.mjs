@@ -62,6 +62,7 @@ const ids = Object.fromEntries(
     "salesManager",
     "clusterManager",
     "admin",
+    "coordinator",
     "broker1",
     "broker2",
     "pending",
@@ -87,6 +88,10 @@ await query(
 await query(
   "insert into profiles(id,employee_id,full_name,role) values($1,$2,$2,'admin')",
   [ids.admin, "admin"],
+);
+await query(
+  "insert into profiles(id,employee_id,full_name,role) values($1,$2,$2,'broker_coordinator')",
+  [ids.coordinator, "coordinator"],
 );
 for (const key of ["broker1", "broker2", "pending"])
   await query(
@@ -159,7 +164,7 @@ const offer = async (key, id, amount, revision = 0) => {
   ).rows[0];
 };
 const select = async (id, o, reason = "") => {
-  const result = await act("so", id, "select", {
+  const result = await act("coordinator", id, "select", {
     offer_id: o.id,
     revision: o.revision,
     reason,
@@ -180,10 +185,14 @@ check(
 );
 await fail(() => market("pending", c.id), /Approved broker/);
 await fail(
-  () => as("otherSo", () => rpc("review_broker_photo", [c.photo, true])),
-  /Case owner/,
+  () => as("so", () => rpc("review_broker_photo", [c.photo, true])),
+  /Broker coordinator required/,
 );
-await as("so", () => rpc("review_broker_photo", [c.photo, true]));
+await fail(
+  () => as("otherSo", () => rpc("review_broker_photo", [c.photo, true])),
+  /Broker coordinator required/,
+);
+await as("coordinator", () => rpc("review_broker_photo", [c.photo, true]));
 const visible = await market("broker1", c.id);
 check(
   visible.total === 1 && visible.items[0].photos.length === 1,
@@ -228,7 +237,7 @@ check(
 );
 check(
   (
-    await act("so", c.id, "select", {
+    await act("coordinator", c.id, "select", {
       offer_id: low.id,
       revision: low.revision,
     })
@@ -237,7 +246,7 @@ check(
 );
 await fail(
   () =>
-    act("otherSo", c.id, "select", {
+    act("so", c.id, "select", {
       offer_id: high.id,
       revision: high.revision,
     }),
@@ -250,7 +259,7 @@ check(
 );
 check(
   (
-    await act("so", c.id, "select", {
+    await act("coordinator", c.id, "select", {
       offer_id: low.id,
       revision: low.revision,
       reason: "Repeat",
@@ -277,7 +286,7 @@ await fail(
 );
 check(
   (
-    await act("so", c.id, "complete", {
+    await act("coordinator", c.id, "complete", {
       reservation_id: hold.id,
       payment_complete: true,
       handover_complete: true,
@@ -285,7 +294,7 @@ check(
   ).error,
   "Cannot close without customer acceptance",
 );
-await act("so", c.id, "accept", { reservation_id: hold.id });
+await act("coordinator", c.id, "accept", { reservation_id: hold.id });
 check(
   (
     await scalar("select expires_at from broker_reservations where id=$1", [
@@ -306,7 +315,7 @@ check(
 );
 check(
   (
-    await act("so", c.id, "complete", {
+    await act("coordinator", c.id, "complete", {
       reservation_id: hold.id,
       payment_complete: true,
       handover_complete: true,
@@ -329,10 +338,10 @@ check(
 );
 const reconfirmed = await offer("broker1", c.id, 530000, low.revision);
 const second = await select(c.id, reconfirmed);
-await act("so", c.id, "accept", { reservation_id: second.id });
+await act("coordinator", c.id, "accept", { reservation_id: second.id });
 check(
   (
-    await act("so", c.id, "complete", {
+    await act("coordinator", c.id, "complete", {
       reservation_id: second.id,
       payment_complete: true,
       handover_complete: false,
@@ -342,7 +351,7 @@ check(
 );
 check(
   (
-    await act("so", c.id, "complete", {
+    await act("coordinator", c.id, "complete", {
       reservation_id: second.id,
       payment_complete: true,
       handover_complete: true,
@@ -352,7 +361,7 @@ check(
 );
 check(
   (
-    await act("so", c.id, "complete", {
+    await act("coordinator", c.id, "complete", {
       reservation_id: second.id,
       payment_complete: true,
       handover_complete: true,
@@ -370,7 +379,7 @@ check(
 );
 
 const d = await newCase();
-await as("so", () => rpc("review_broker_photo", [d.photo, true]));
+await as("coordinator", () => rpc("review_broker_photo", [d.photo, true]));
 const dOffer = await offer("broker1", d.id, 400000);
 const dHold = await select(d.id, dOffer);
 await fail(
@@ -406,7 +415,7 @@ check(
   ])) === "withdrawn",
   "Reactivation does not resurrect offers",
 );
-await act("so", d.id, "withdraw_consent", { reason: "Customer opted out" });
+await act("coordinator", d.id, "withdraw_consent", { reason: "Customer opted out" });
 check(
   (await market("broker2", d.id)).total === 0,
   "Consent withdrawal delists case",
@@ -421,7 +430,7 @@ check(
 );
 
 const other = await newCase(1);
-await as("otherSo", () => rpc("review_broker_photo", [other.photo, true]));
+await as("coordinator", () => rpc("review_broker_photo", [other.photo, true]));
 check(
   (await market("broker1", other.id)).total === 1,
   "Broker can browse across branches",
@@ -490,7 +499,7 @@ const plate = await scalar(
   [f.id],
 );
 await fail(
-  () => as("so", () => rpc("review_broker_photo", [plate, true])),
+  () => as("coordinator", () => rpc("review_broker_photo", [plate, true])),
   /Plate-visible/,
 );
 await fail(
@@ -500,7 +509,7 @@ await fail(
     ),
   /permission denied/,
 );
-await as("so", () => rpc("review_broker_photo", [f.photo, true]));
+await as("coordinator", () => rpc("review_broker_photo", [f.photo, true]));
 await fail(
   () =>
     as("so", () =>
@@ -527,15 +536,15 @@ check(
 const f2 = await offer("broker2", f.id, 510000);
 check(
   (await as("so", () => rpc("so_broker_summary", []))).awaiting_selection >= 1,
-  "SO receives offer-selection count",
+  "SO still receives a read-only offer-selection count on their own cases",
 );
 const results = await Promise.all([
-  act("so", f.id, "select", {
+  act("coordinator", f.id, "select", {
     offer_id: f1.id,
     revision: f1.revision,
     reason: "Broker availability",
   }),
-  act("so", f.id, "select", { offer_id: f2.id, revision: f2.revision }),
+  act("coordinator", f.id, "select", { offer_id: f2.id, revision: f2.revision }),
 ]);
 check(
   results.filter((r) => r.ok).length === 1,
@@ -554,7 +563,7 @@ const fHold = (
     [f.id],
   )
 ).rows[0];
-await act("so", f.id, "reject", {
+await act("coordinator", f.id, "reject", {
   reservation_id: fHold.id,
   reason: "Customer rejected broker price",
 });
@@ -621,12 +630,12 @@ check(
     .length === 0,
   "Raw reservations deny all broker access",
 );
-await query("update profiles set is_active=false where id=$1", [ids.so]);
+await query("update profiles set is_active=false where id=$1", [ids.coordinator]);
 await fail(
-  () => act("so", f.id, "withdraw_consent", { reason: "Inactive SO" }),
+  () => act("coordinator", f.id, "withdraw_consent", { reason: "Inactive coordinator" }),
   /Not authorized/,
 );
-await query("update profiles set is_active=true where id=$1", [ids.so]);
+await query("update profiles set is_active=true where id=$1", [ids.coordinator]);
 const draft = await as("so", () =>
   scalar(
     "insert into cases(branch_id,sales_officer_id) values($1,$2) returning id",
@@ -691,15 +700,11 @@ check((await as("salesManager", () => query("select id from case_photos where id
 check((await as("otherSo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other SO cannot inspect RC");
 await as("po", () => rpc("start_po_evaluation", [rcCase.id]));
 await as("po", () => rpc("submit_po_evaluation", [rcCase.id, true, "RC reviewed", 450000]));
-await fail(
-  () => as("so", () => rpc("record_customer_decision", [rcCase.id, "rejected", true])),
-  /Approve at least one broker-visible vehicle photo/,
-);
-check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_customer_decision", "Broker consent without an approved photo leaves the case unlisted");
-await as("so", () => rpc("review_broker_photo", [rcCase.photo, true]));
 await as("so", () => rpc("record_customer_decision", [rcCase.id, "rejected", true]));
-await fail(() => as("so", () => rpc("review_broker_photo", [rcPhoto, true])), /rc_book_never_broker_visible/);
-await as("so", () => rpc("review_broker_photo", [rcCase.photo, true]));
+check(await scalar("select status from cases where id=$1", [rcCase.id]) === "listed_for_brokers", "Reject + consent lists immediately, with zero approved photos yet -- that's now Broker Coordinator's first job, not a precondition on the SO");
+await fail(() => as("so", () => rpc("review_broker_photo", [rcCase.photo, true])), /Broker coordinator required/);
+await fail(() => as("coordinator", () => rpc("review_broker_photo", [rcPhoto, true])), /rc_book_never_broker_visible/);
+await as("coordinator", () => rpc("review_broker_photo", [rcCase.photo, true]));
 const rcMarket = JSON.stringify(await market("broker1", rcCase.id));
 check(!rcMarket.includes(rcPhoto) && !rcMarket.includes("rc_book"), "Broker listing excludes RC metadata");
 check((await as("broker1", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Broker cannot read RC directly");

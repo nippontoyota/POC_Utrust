@@ -27,17 +27,14 @@ export default async function SoCaseDetailPage({
 
   if (!caseRow) notFound();
 
-  const hasApprovedBrokerPhoto = (photos ?? []).some((p) => p.broker_visible && !p.is_plate_visible);
-
   return (
     <>
       <CaseWorkspace
         initialCase={caseRow}
         initialPhotos={photos ?? []}
         offer={offer ?? null}
-        hasApprovedBrokerPhoto={hasApprovedBrokerPhoto}
       />
-      <StaffBrokerPanel caseId={id} status={caseRow.status} />
+      <StaffBrokerPanel caseId={id} status={caseRow.status} readOnly />
     </>
   );
 }

@@ -17,6 +17,7 @@ const ROLE_OPTIONS: { value: Enums<"app_role">; label: string }[] = [
   { value: "sales_manager", label: "Sales Manager" },
   { value: "cluster_manager", label: "Cluster Manager" },
   { value: "po_manager", label: "PO Manager" },
+  { value: "broker_coordinator", label: "Broker Coordinator" },
   { value: "admin", label: "Admin" },
 ];
 

@@ -78,6 +78,7 @@ const definitions = {
   otherSo: { role: "sales_officer", branch: 1 },
   otherPo: { role: "purchase_officer", branch: 1 },
   otherSalesManager: { role: "sales_manager", branch: 1 },
+  coordinator: { role: "broker_coordinator" },
   broker1: { role: "broker" }, broker2: { role: "broker" }, pending: { role: "broker" },
 };
 const actors = {};
@@ -107,7 +108,7 @@ async function login(key) {
   const authResponse = page.waitForResponse(r => r.url().includes("/auth/v1/token") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   assert((await authResponse).ok(), `${key}: password sign-in failed`);
-  const rolePath = account.role === "broker" ? "broker" : account.role === "sales_officer" ? "so" : account.role === "purchase_officer" ? "po" : account.role === "admin" ? "admin" : "manager";
+  const rolePath = account.role === "broker" ? "broker" : account.role === "sales_officer" ? "so" : account.role === "purchase_officer" ? "po" : account.role === "admin" ? "admin" : account.role === "broker_coordinator" ? "coordinator" : "manager";
   try {
     await page.waitForURL(`**/${rolePath}/dashboard`, { timeout: 60000, waitUntil: "domcontentloaded" });
   } catch (error) {
@@ -258,10 +259,6 @@ async function prepare(v) {
     const expected = accept ? "purchase_completion_pending" : v.key === "reject" ? "rejected_not_listed" : "listed_for_brokers";
     if ((await row(id)).status === "pending_customer_decision") {
       await page.getByRole("button", { name: accept ? "Customer Accepted" : "Customer Rejected", exact: true }).click();
-      if (!accept && v.key !== "reject") {
-        // Listing to brokers now requires an approved photo before the consent button even enables.
-        await uiRPC(page, "review_broker_photo", () => page.getByRole("checkbox", { name: "Reviewed: no plate, personal details or documents. Publish to brokers." }).first().click());
-      }
       const name = accept ? "Yes, confirm" : v.key === "reject" ? "No, do not list" : "Yes, list with brokers";
       await uiRPC(page, "record_customer_decision", () => page.getByRole("button", { name, exact: true }).click());
     }
@@ -269,11 +266,12 @@ async function prepare(v) {
   });
   if (!["broker", "hold", "release", "consent"].includes(v.key)) return;
   await step(`${v.key}: privacy and photo approval`, async () => {
+    const coordinatorPage = actors.coordinator.page;
     const hidden = unwrap(await rpc("broker1", "broker_marketplace", { p_case_id: id }));
     if (hidden.total === 0) {
       check(true, `${v.key}: unreviewed photos keep listing hidden`);
-      await navigate(page, `/so/cases/${id}`);
-      await uiRPC(page, "review_broker_photo", () => page.getByRole("checkbox", { name: "Reviewed: no plate, personal details or documents. Publish to brokers." }).first().click());
+      await navigate(coordinatorPage, `/coordinator/cases/${id}`);
+      await uiRPC(coordinatorPage, "review_broker_photo", () => coordinatorPage.getByRole("checkbox", { name: "Reviewed: no plate, personal details or documents. Publish to brokers." }).first().click());
     }
     const market = unwrap(await rpc("broker1", "broker_marketplace", { p_case_id: id }));
     check(market.total === 1 && market.items[0].photos.length === 1, `${v.key}: reviewed listing visible across branches`);
@@ -297,9 +295,8 @@ async function bid(key, v, amount) {
 }
 const holdFor = async v => unwrap(await admin.from("broker_reservations").select("*").eq("case_id", state.cases[v].id).eq("status", "active").single());
 async function selectBid(v, key, reason = "", errorPattern) {
-  const so = scenarios.find(s => s.key === v).so;
-  const page = actors[so].page;
-  await navigate(page, `/so/cases/${state.cases[v].id}`);
+  const page = actors.coordinator.page;
+  await navigate(page, `/coordinator/cases/${state.cases[v].id}`);
   await page.getByLabel("Selection / release / withdrawal reason").fill(reason);
   const offerRow = page.getByRole("row").filter({ hasText: credentials.accounts[key].company });
   await uiRPC(page, "broker_case_action", () => offerRow.getByRole("button", { name: "Select for 48h", exact: true }).click(), errorPattern);
@@ -312,8 +309,8 @@ async function selectBid(v, key, reason = "", errorPattern) {
   return hold;
 }
 async function staffAction(v, button, reason = "") {
-  const page = actors[scenarios.find(s => s.key === v).so].page;
-  await navigate(page, `/so/cases/${state.cases[v].id}`);
+  const page = actors.coordinator.page;
+  await navigate(page, `/coordinator/cases/${state.cases[v].id}`);
   if (reason) await page.getByLabel("Selection / release / withdrawal reason").fill(`${run}: ${reason}`);
   await uiRPC(page, "broker_case_action", () => page.getByRole("button", { name: button, exact: true }).click());
 }
@@ -361,7 +358,7 @@ try {
     unwrap(await api.auth.signInWithPassword({ email: account.email, password: credentials.password }));
     actors[key] = { id: account.id, api };
   }
-  for (const key of ["so", "po", "salesManager", "clusterManager", "admin", "otherSo", "otherPo", "otherSalesManager"]) await login(key);
+  for (const key of ["so", "po", "salesManager", "clusterManager", "admin", "coordinator", "otherSo", "otherPo", "otherSalesManager"]) await login(key);
   if (mode === "--run-live") {
     await step("broker approvals and admin/manager scope", async () => {
       await denied("pending", "broker_marketplace", {}, /Approved broker/i, "Pending broker cannot browse");
@@ -415,18 +412,20 @@ try {
       const hold = await holdFor("broker");
       await denied("broker2", "broker_case_action", { p_case_id: id, p_action: "offer", p_payload: { amount: 690000, revision: 1 } }, /not open/i, "Bidding blocked while another broker holds the vehicle");
       await denied("broker2", "broker_case_action", { p_case_id: id, p_action: "release", p_payload: { reservation_id: hold.id, reason: "Not my hold" } }, /Not authorized/i, "A competing broker cannot release the lock");
-      await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /acceptance/i, "Broker completion requires customer acceptance");
+      await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /Not authorized/i, "SO (even the case owner) cannot complete a broker deal");
+      await denied("coordinator", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /acceptance/i, "Broker completion requires customer acceptance");
       await staffAction("broker", "Customer accepted");
       assert.equal((await holdFor("broker")).expires_at, hold.expires_at);
       check(true, "Customer acceptance does not extend the hold");
-      const page = actors.otherSo.page;
+      const page = actors.coordinator.page;
+      await navigate(page, `/coordinator/cases/${id}`);
       await expect(page.getByRole("button", { name: "Complete broker deal", exact: true })).toBeDisabled();
       await page.getByLabel("Payment completed", { exact: true }).check();
       await expect(page.getByRole("button", { name: "Complete broker deal", exact: true })).toBeDisabled();
       await page.getByLabel("Vehicle handover completed", { exact: true }).check();
       await uiRPC(page, "broker_case_action", () => page.getByRole("button", { name: "Complete broker deal", exact: true }).click());
       await status(id, "broker_deal_closed");
-      await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /ended or changed/i, "Broker completion cannot be duplicated");
+      await denied("coordinator", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /ended or changed/i, "Broker completion cannot be duplicated");
     });
     await step("release: reject, release, withdraw and reconfirm", async () => {
       await bid("broker1", "release", 640000);
@@ -470,7 +469,7 @@ try {
       const first = await bid("broker1", "hold", 800000);
       const second = await bid("broker2", "hold", 820000);
       const id = state.cases.hold.id;
-      const results = await Promise.all([first, second].map(o => action("so", id, "select", { offer_id: o.id, revision: o.revision, reason: `${run}: concurrent selection test` })));
+      const results = await Promise.all([first, second].map(o => action("coordinator", id, "select", { offer_id: o.id, revision: o.revision, reason: `${run}: concurrent selection test` })));
       check(results.filter(r => !r.error && r.data?.ok).length === 1 && results.filter(r => r.data?.error).length === 1, "Concurrent live selection requests produce exactly one successful lock");
       const holds = unwrap(await admin.from("broker_reservations").select("*").eq("case_id", id).eq("status", "active"));
       check(holds.length === 1, "Database contains exactly one active reservation for competing selections");
@@ -537,9 +536,10 @@ try {
       check(unwrap(await actors.broker1.api.from(table).select("id")).length === 0, `Broker cannot read raw ${table}`);
     }
     await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Wrong owner" } }, /Not authorized/i, "Other SO cannot change broker workflow");
+    await denied("so", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Case owner no longer has write access" } }, /Not authorized/i, "SO (even the case owner) cannot change broker workflow -- that's Broker Coordinator's job now");
     await denied("broker1", "broker_report", {}, /Active cluster manager required/i, "Broker cannot read manager reports");
     const rc = state.cases.hold.rcPhoto;
-    for (const [key, expected] of [["broker1", 403], ["otherSalesManager", 403], ["po", 200], ["salesManager", 200]]) {
+    for (const [key, expected] of [["broker1", 403], ["otherSalesManager", 403], ["po", 200], ["salesManager", 200], ["coordinator", 200]]) {
       const res = await actors[key].page.request.get(`/api/photos/${rc}/signed-url`);
       check(res.status() === expected, `${key}: RC endpoint returns ${expected}`);
       if (expected === 200) {
@@ -582,6 +582,7 @@ try {
     ["clusterManager", ["/manager/dashboard", "/manager/marketplace", `/manager/cases?q=${run}`]],
     ["admin", ["/admin/dashboard", "/admin/users", "/admin/brokers?status=approved"]],
     ["salesManager", ["/manager/dashboard", `/manager/cases?q=${run}`]],
+    ["coordinator", ["/coordinator/cases", `/coordinator/cases/${state.cases.hold.id}`]],
     ["so", ["/so/dashboard", "/so/cases"]], ["otherSo", ["/so/dashboard", "/so/cases"]],
     ["po", ["/po/dashboard", "/po/cases"]], ["otherPo", ["/po/dashboard", "/po/cases"]],
     ["broker1", ["/broker/dashboard", "/broker/offers", "/broker/reservations", "/broker/history"]],

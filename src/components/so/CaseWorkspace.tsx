@@ -58,12 +58,10 @@ export function CaseWorkspace({
   initialCase,
   initialPhotos,
   offer,
-  hasApprovedBrokerPhoto,
 }: {
   initialCase: CaseRow;
   initialPhotos: PhotoRow[];
   offer: OfferRow | null;
-  hasApprovedBrokerPhoto: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -825,17 +823,10 @@ export function CaseWorkspace({
               <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
                 Does the customer consent to listing this vehicle with brokers?
               </p>
-              {!hasApprovedBrokerPhoto && (
-                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-                  Approve at least one broker-visible vehicle photo in Photo Review below before listing with
-                  brokers &mdash; otherwise the case won&apos;t be visible to any broker.
-                </p>
-              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => confirmReject(true)}
-                  disabled={decisionSubmitting || !hasApprovedBrokerPhoto}
-                  title={!hasApprovedBrokerPhoto ? "Approve a broker-visible photo in Photo Review first" : undefined}
+                  disabled={decisionSubmitting}
                   className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
                   Yes, list with brokers
