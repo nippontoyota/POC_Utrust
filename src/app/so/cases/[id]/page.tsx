@@ -18,11 +18,23 @@ export default async function SoCaseDetailPage({
   const [{ data: photos }, { data: offer }] = await Promise.all([
     supabase
       .from("case_photos")
-      .select("id, category, storage_path, file_size_bytes, mime_type, created_at")
+      .select("id, category, storage_path, file_size_bytes, mime_type, created_at, broker_visible, is_plate_visible")
       .eq("case_id", id)
       .order("created_at"),
     supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
   ]);
 
-  return <><CaseWorkspace initialCase={caseRow} initialPhotos={photos ?? []} offer={offer ?? null} /><StaffBrokerPanel caseId={id} status={caseRow.status} /></>;
+  const hasApprovedBrokerPhoto = (photos ?? []).some((p) => p.broker_visible && !p.is_plate_visible);
+
+  return (
+    <>
+      <CaseWorkspace
+        initialCase={caseRow}
+        initialPhotos={photos ?? []}
+        offer={offer ?? null}
+        hasApprovedBrokerPhoto={hasApprovedBrokerPhoto}
+      />
+      <StaffBrokerPanel caseId={id} status={caseRow.status} />
+    </>
+  );
 }

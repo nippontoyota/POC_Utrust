@@ -258,6 +258,10 @@ async function prepare(v) {
     const expected = accept ? "purchase_completion_pending" : v.key === "reject" ? "rejected_not_listed" : "listed_for_brokers";
     if ((await row(id)).status === "pending_customer_decision") {
       await page.getByRole("button", { name: accept ? "Customer Accepted" : "Customer Rejected", exact: true }).click();
+      if (!accept && v.key !== "reject") {
+        // Listing to brokers now requires an approved photo before the consent button even enables.
+        await uiRPC(page, "review_broker_photo", () => page.getByRole("checkbox", { name: "Reviewed: no plate, personal details or documents. Publish to brokers." }).first().click());
+      }
       const name = accept ? "Yes, confirm" : v.key === "reject" ? "No, do not list" : "Yes, list with brokers";
       await uiRPC(page, "record_customer_decision", () => page.getByRole("button", { name, exact: true }).click());
     }

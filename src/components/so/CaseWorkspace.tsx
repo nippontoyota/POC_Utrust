@@ -18,7 +18,14 @@ import type { Enums, Tables } from "@/lib/supabase/database.types";
 type CaseRow = Tables<"cases">;
 type PhotoRow = Pick<
   Tables<"case_photos">,
-  "id" | "category" | "storage_path" | "file_size_bytes" | "mime_type" | "created_at"
+  | "id"
+  | "category"
+  | "storage_path"
+  | "file_size_bytes"
+  | "mime_type"
+  | "created_at"
+  | "broker_visible"
+  | "is_plate_visible"
 >;
 type OfferRow = Tables<"case_offers">;
 
@@ -38,10 +45,12 @@ export function CaseWorkspace({
   initialCase,
   initialPhotos,
   offer,
+  hasApprovedBrokerPhoto,
 }: {
   initialCase: CaseRow;
   initialPhotos: PhotoRow[];
   offer: OfferRow | null;
+  hasApprovedBrokerPhoto: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -236,7 +245,7 @@ export function CaseWorkspace({
         mime_type: file.type,
         uploaded_by: initialCase.sales_officer_id,
       })
-      .select("id, category, storage_path, file_size_bytes, mime_type, created_at")
+      .select("id, category, storage_path, file_size_bytes, mime_type, created_at, broker_visible, is_plate_visible")
       .single();
 
     setUploadingCategory(null);
@@ -796,10 +805,17 @@ export function CaseWorkspace({
               <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
                 Does the customer consent to listing this vehicle with brokers?
               </p>
+              {!hasApprovedBrokerPhoto && (
+                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
+                  Approve at least one broker-visible vehicle photo in Photo Review below before listing with
+                  brokers &mdash; otherwise the case won&apos;t be visible to any broker.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={() => confirmReject(true)}
-                  disabled={decisionSubmitting}
+                  disabled={decisionSubmitting || !hasApprovedBrokerPhoto}
+                  title={!hasApprovedBrokerPhoto ? "Approve a broker-visible photo in Photo Review first" : undefined}
                   className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
                   Yes, list with brokers

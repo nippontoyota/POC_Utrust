@@ -691,6 +691,12 @@ check((await as("salesManager", () => query("select id from case_photos where id
 check((await as("otherSo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other SO cannot inspect RC");
 await as("po", () => rpc("start_po_evaluation", [rcCase.id]));
 await as("po", () => rpc("submit_po_evaluation", [rcCase.id, true, "RC reviewed", 450000]));
+await fail(
+  () => as("so", () => rpc("record_customer_decision", [rcCase.id, "rejected", true])),
+  /Approve at least one broker-visible vehicle photo/,
+);
+check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_customer_decision", "Broker consent without an approved photo leaves the case unlisted");
+await as("so", () => rpc("review_broker_photo", [rcCase.photo, true]));
 await as("so", () => rpc("record_customer_decision", [rcCase.id, "rejected", true]));
 await fail(() => as("so", () => rpc("review_broker_photo", [rcPhoto, true])), /rc_book_never_broker_visible/);
 await as("so", () => rpc("review_broker_photo", [rcCase.photo, true]));

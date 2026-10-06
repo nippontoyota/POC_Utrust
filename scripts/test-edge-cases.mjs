@@ -361,10 +361,10 @@ console.log("\n━━━ EC8: Suspended Broker Restrictions ━━━");
   const c = await createCase("so1", branchA, "SUSP-001");
   await submitCase("so1", c);
   await evaluateCase(c);
-  await as("so1", () => rpc("record_customer_decision", [c, "rejected", true]));
-  // Prepare photo for broker visibility
+  // Prepare photo for broker visibility before consenting, as the marketplace requires
   const photo = await scalar("select id from case_photos where case_id=$1 and category='left' limit 1", [c]);
   await as("so1", () => rpc("review_broker_photo", [photo, true]));
+  await as("so1", () => rpc("record_customer_decision", [c, "rejected", true]));
 
   await expectError(
     () => as("broker_suspended", () => rpc("broker_case_action", [c, "offer", JSON.stringify({amount:500000,revision:0})], ["uuid","text","jsonb"])),
@@ -561,6 +561,8 @@ console.log("\n━━━ EC14: Customer Decision Branching ━━━");
   // Reject + broker consent true → listed_for_brokers
   const c2 = await createCase("so1", branchA, "DEC-002");
   await submitCase("so1", c2); await evaluateCase(c2);
+  const c2Photo = await scalar("select id from case_photos where case_id=$1 and category='left' limit 1", [c2]);
+  await as("so1", () => rpc("review_broker_photo", [c2Photo, true]));
   await as("so1", () => rpc("record_customer_decision", [c2, "rejected", true]));
   check(await scalar("select status from cases where id=$1", [c2]) === "listed_for_brokers", "EC14.3", "Customer rejected + broker consent → listed_for_brokers");
   check(await scalar("select broker_consent from cases where id=$1", [c2]) === true, "EC14.4", "broker_consent = true stored");
@@ -586,6 +588,8 @@ console.log("\n━━━ EC15: Plate-Visible Photo Safety ━━━");
 {
   const c = await createCase("so1", branchA, "PLATE-001");
   await submitCase("so1", c); await evaluateCase(c);
+  const plateCaseConsentPhoto = await scalar("select id from case_photos where case_id=$1 and category='left' limit 1", [c]);
+  await as("so1", () => rpc("review_broker_photo", [plateCaseConsentPhoto, true]));
   await as("so1", () => rpc("record_customer_decision", [c, "rejected", true]));
 
   // Insert a plate-visible photo
