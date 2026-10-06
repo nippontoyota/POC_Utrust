@@ -54,7 +54,9 @@ export function StaffBrokerControls({
             approved)
           </summary>
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data.photos.map((photo) => (
+            {[...data.photos]
+              .sort((a, b) => a.category.localeCompare(b.category) || a.id.localeCompare(b.id))
+              .map((photo) => (
               <div key={photo.id} className="min-w-0 space-y-2">
                 <PhotoGallery photos={[photo]} />
                 <label className="flex items-start gap-2 text-sm">
