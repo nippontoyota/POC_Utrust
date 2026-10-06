@@ -1,6 +1,12 @@
 export const EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
 export const MOBILE_PATTERN = "^[0-9]{10}$";
 export const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// Indian vehicle registration numbers run 9-11 characters once normalized
+// (e.g. KL01AB1234, DL1CAB1234, the newer 22BH1234AA Bharat-series) -- this
+// bounds length only, not an exact shape, so an unusual but real plate never
+// gets rejected.
+export const VEHICLE_REG_MIN_LENGTH = 9;
+export const VEHICLE_REG_MAX_LENGTH = 11;
 
 export function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -16,6 +22,15 @@ export function normalizeMobile(value: string) {
 
 export function isValidMobile(value: string) {
   return new RegExp(MOBILE_PATTERN).test(normalizeMobile(value));
+}
+
+export function normalizeVehicleRegNumber(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+export function isValidVehicleRegNumber(value: string) {
+  const length = normalizeVehicleRegNumber(value).length;
+  return length >= VEHICLE_REG_MIN_LENGTH && length <= VEHICLE_REG_MAX_LENGTH;
 }
 
 export function isValidDateInput(value: string | undefined) {

@@ -10,7 +10,15 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { MOBILE_PATTERN, isValidMobile, normalizeMobile } from "@/lib/validation";
+import {
+  MOBILE_PATTERN,
+  VEHICLE_REG_MAX_LENGTH,
+  VEHICLE_REG_MIN_LENGTH,
+  isValidMobile,
+  isValidVehicleRegNumber,
+  normalizeMobile,
+  normalizeVehicleRegNumber,
+} from "@/lib/validation";
 import { VEHICLE_MAKES } from "@/lib/vehicleModels";
 import { getVehicleColors } from "@/lib/vehicleColors";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
@@ -40,6 +48,11 @@ const REQUIRED_ANGLES: { key: string; label: string }[] = [
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_PHOTOS = 10;
 const CURRENT_YEAR = new Date().getFullYear();
+const MIN_REGISTRATION_YEAR = 1980;
+const REGISTRATION_YEARS = Array.from(
+  { length: CURRENT_YEAR - MIN_REGISTRATION_YEAR + 1 },
+  (_, i) => CURRENT_YEAR - i
+);
 
 export function CaseWorkspace({
   initialCase,
@@ -67,7 +80,7 @@ export function CaseWorkspace({
     model: initialCase.model ?? "",
     variant: initialCase.variant ?? "",
     color: initialCase.color ?? "",
-    registration_year: initialCase.registration_year?.toString() ?? "",
+    registration_year: initialCase.registration_year?.toString() ?? CURRENT_YEAR.toString(),
     fuel_type: (initialCase.fuel_type ?? "") as Enums<"fuel_type"> | "",
     transmission: (initialCase.transmission ?? "") as Enums<"transmission_type"> | "",
     odometer_km: initialCase.odometer_km?.toString() ?? "",
@@ -117,9 +130,13 @@ export function CaseWorkspace({
       return "Enter a valid 10 digit customer mobile number.";
     }
 
+    if (fields.vehicle_reg_number && !isValidVehicleRegNumber(fields.vehicle_reg_number)) {
+      return `Vehicle registration number must be ${VEHICLE_REG_MIN_LENGTH}-${VEHICLE_REG_MAX_LENGTH} characters.`;
+    }
+
     const year = Number(fields.registration_year);
-    if (fields.registration_year && (!Number.isInteger(year) || year < 1980 || year > CURRENT_YEAR)) {
-      return `Registration year must be between 1980 and ${CURRENT_YEAR}.`;
+    if (fields.registration_year && (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR)) {
+      return `Registration year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
     }
 
     const odometer = Number(fields.odometer_km);
@@ -144,7 +161,7 @@ export function CaseWorkspace({
     return {
       customer_name: fields.customer_name || null,
       customer_mobile: fields.customer_mobile ? normalizeMobile(fields.customer_mobile) : null,
-      vehicle_reg_number: fields.vehicle_reg_number ? fields.vehicle_reg_number.trim().toUpperCase().replace(/\s+/g, "") : null,
+      vehicle_reg_number: fields.vehicle_reg_number ? normalizeVehicleRegNumber(fields.vehicle_reg_number) : null,
       make: fields.make || null,
       model: fields.model || null,
       variant: fields.variant.trim() || null,
@@ -437,6 +454,7 @@ export function CaseWorkspace({
             <input
               type="text"
               disabled={!isDraft}
+              maxLength={VEHICLE_REG_MAX_LENGTH + 3}
               value={fields.vehicle_reg_number}
               onChange={(e) => update("vehicle_reg_number", e.target.value)}
               className={inputClass}
@@ -556,16 +574,18 @@ export function CaseWorkspace({
             </FormField>
           )}
           <FormField label="Registration year" required>
-            <input
-              type="number"
+            <select
               disabled={!isDraft}
-              min={1980}
-              max={CURRENT_YEAR}
-              step={1}
               value={fields.registration_year}
               onChange={(e) => update("registration_year", e.target.value)}
               className={inputClass}
-            />
+            >
+              {REGISTRATION_YEARS.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
           </FormField>
           <FormField label="Fuel type" required>
             <select
