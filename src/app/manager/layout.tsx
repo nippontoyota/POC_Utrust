@@ -31,7 +31,7 @@ export default async function ManagerLayout({
       links={[
         { href: "/manager/dashboard", label: "Dashboard", icon: "dashboard" },
         { href: "/manager/cases", label: "All Cases", icon: "cases" },
-        ...(role === "cluster_manager"
+        ...(role === "cluster_manager" || role === "po_manager"
           ? [
               {
                 href: "/manager/marketplace",

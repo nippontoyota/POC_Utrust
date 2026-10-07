@@ -22,8 +22,12 @@ export default async function ManagerDashboardPage() {
   const profile = await getCurrentProfile();
 
   if (profile?.role === "po_manager") {
-    const { data, error } = await supabase.rpc("po_manager_summary", {});
+    const [{ data, error }, { data: brokerData, error: brokerError }] = await Promise.all([
+      supabase.rpc("po_manager_summary", {}),
+      supabase.rpc("broker_report", {}),
+    ]);
     const summary = data as unknown as PoManagerSummary | null;
+    const brokerReport = brokerData as unknown as BrokerReport | null;
     const overdueByPo = new Map<string, number>();
     let overdueCount = 0;
     let notStartedCount = 0;
@@ -111,6 +115,13 @@ export default async function ManagerDashboardPage() {
             icon={BadgeCheck}
             href="/manager/cases?status=closed"
           />
+        </div>
+
+        {brokerError && <BrokerLoadError error={brokerError} />}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
+          <StatCard label="Broker closed deals" value={brokerReport?.completed ?? "Unavailable"} icon={CheckCircle2} href="/manager/marketplace" />
+          <StatCard label="Broker deal value" value={brokerReport ? formatINR(brokerReport.deal_value) : "Unavailable"} icon={Wallet} href="/manager/marketplace" />
+          <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
         </div>
 
         {oldestPending && (
