@@ -16,3 +16,7 @@ export function isOverdue(submittedAt: string | null, businessDaysThreshold: num
   const deadline = addBusinessDays(new Date(submittedAt), businessDaysThreshold);
   return new Date() > deadline;
 }
+
+export function daysSince(dateStr: string): number {
+  return (Date.now() - Date.parse(dateStr)) / 86400000;
+}
