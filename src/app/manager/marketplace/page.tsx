@@ -127,18 +127,9 @@ export default async function Page({
           <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
             {[
               ["Live listings", report.listed],
-              ["Without current offers", report.without_offers],
               ["Active reservations", report.active],
-              ["Expiring within 2 hours", report.expiring],
               ["Deals completed in period", report.completed],
               ["Broker deal value", formatINR(report.deal_value)],
-              ["First listed in period", report.cohort_listed],
-              [
-                "Listing cohort conversion",
-                report.cohort_listed
-                  ? `${((100 * report.cohort_completed) / report.cohort_listed).toFixed(1)}%`
-                  : "N/A",
-              ],
             ].map(([label, value]) => (
               <div key={label} className="min-w-0 rounded-[1.25rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_16px_45px_rgb(33_25_20/0.06)] dark:shadow-none">
                 <dt className="text-xs font-black uppercase tracking-[0.12em] text-[var(--muted)]">{label}</dt>
@@ -148,67 +139,95 @@ export default async function Page({
               </div>
             ))}
           </dl>
-          <Card className="space-y-3">
-            <CardTitle>Reservation Attempts Started in Period</CardTitle>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[650px] text-left text-sm">
-                <thead className="text-xs font-black uppercase text-[var(--muted)]">
-                  <tr>
-                    {[
-                      "Broker",
-                      "Attempts",
-                      "Completed",
-                      "Expired",
-                      "Released",
-                      "Completed value",
-                    ].map((t) => (
-                      <th key={t} className="border-b p-2 font-medium">
-                        {t}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.brokers.map((b) => (
-                    <tr key={b.id}>
-                      {[
-                        b.name,
-                        b.attempts,
-                        b.completed,
-                        b.expired,
-                        b.released,
-                        formatINR(b.value),
-                      ].map((v, i) => (
-                        <td
-                          key={i}
-                          className="border-b border-zinc-100 p-2 dark:border-zinc-800"
-                        >
-                          {v}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!report.brokers.length && (
-              <p className="text-sm text-[var(--muted)]">No reservation attempts.</p>
-            )}
-          </Card>
-          <Card className="space-y-2">
-            <CardTitle>Expiry &amp; Release Reasons</CardTitle>
-            {report.outcomes.map((r) => (
-              <p key={r.reason} className="flex justify-between gap-3 text-sm">
-                <span>{r.reason}</span>
-                <strong>{r.count}</strong>
-              </p>
+          <dl className="flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] px-4 py-3">
+            {[
+              ["Without current offers", report.without_offers],
+              ["Expiring within 2 hours", report.expiring],
+              ["First listed in period", report.cohort_listed],
+              [
+                "Listing cohort conversion",
+                report.cohort_listed
+                  ? `${((100 * report.cohort_completed) / report.cohort_listed).toFixed(1)}%`
+                  : "N/A",
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-baseline gap-2 text-sm">
+                <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">{label}</dt>
+                <dd className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{value}</dd>
+              </div>
             ))}
-            {!report.outcomes.length && (
-              <p className="text-sm text-[var(--muted)]">
-                No expired or released attempts.
-              </p>
-            )}
-          </Card>
+          </dl>
+          <details className="group rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_24px_70px_rgb(33_25_20/0.08)] dark:shadow-none">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 text-sm font-black uppercase tracking-[0.16em] text-zinc-900 [&::-webkit-details-marker]:hidden dark:text-zinc-100 sm:p-6">
+              <span>Broker detail</span>
+              <span className="text-xs font-normal normal-case tracking-normal text-[var(--muted)] group-open:hidden">
+                Attempts, completions &amp; release reasons by broker
+              </span>
+            </summary>
+            <div className="space-y-6 border-t border-[var(--line)] px-5 pb-5 sm:px-6 sm:pb-6">
+              <div className="space-y-3">
+                <CardTitle className="mb-0 pt-5">Reservation Attempts Started in Period</CardTitle>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[650px] text-left text-sm">
+                    <thead className="text-xs font-black uppercase text-[var(--muted)]">
+                      <tr>
+                        {[
+                          "Broker",
+                          "Attempts",
+                          "Completed",
+                          "Expired",
+                          "Released",
+                          "Completed value",
+                        ].map((t) => (
+                          <th key={t} className="border-b p-2 font-medium">
+                            {t}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.brokers.map((b) => (
+                        <tr key={b.id}>
+                          {[
+                            b.name,
+                            b.attempts,
+                            b.completed,
+                            b.expired,
+                            b.released,
+                            formatINR(b.value),
+                          ].map((v, i) => (
+                            <td
+                              key={i}
+                              className="border-b border-zinc-100 p-2 dark:border-zinc-800"
+                            >
+                              {v}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!report.brokers.length && (
+                  <p className="text-sm text-[var(--muted)]">No reservation attempts.</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <CardTitle className="mb-0">Expiry &amp; Release Reasons</CardTitle>
+                {report.outcomes.map((r) => (
+                  <p key={r.reason} className="flex justify-between gap-3 text-sm">
+                    <span>{r.reason}</span>
+                    <strong>{r.count}</strong>
+                  </p>
+                ))}
+                {!report.outcomes.length && (
+                  <p className="text-sm text-[var(--muted)]">
+                    No expired or released attempts.
+                  </p>
+                )}
+              </div>
+            </div>
+          </details>
           <Card className="space-y-3">
             <CardTitle>Recently Listed Cases (up to 100)</CardTitle>
             {report.cases.map((c) => (
