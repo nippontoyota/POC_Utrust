@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { AppShell } from "@/components/AppShell";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -12,15 +12,7 @@ export default async function ManagerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, full_name, branches(name), clusters(name)")
-    .eq("id", user!.id)
-    .single();
+  const profile = await getCurrentProfile();
 
   const role = profile?.role ?? "sales_manager";
   const roleLabel = ROLE_LABELS[role] ?? role;

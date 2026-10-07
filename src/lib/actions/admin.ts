@@ -1,25 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { getAuthUser, getCurrentProfile } from "@/lib/supabase/auth";
 import { employeeIdToAuthEmail } from "@/lib/employeeAuth";
 import type { Enums } from "@/lib/supabase/database.types";
 
 // Every privileged action here re-checks the caller is an active admin using
 // their own normal session -- never trust a role claim from the client.
 async function requireActiveAdminId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, is_active")
-    .eq("id", user.id)
-    .single();
-
+  const profile = await getCurrentProfile();
   if (!profile || profile.role !== "admin" || !profile.is_active) return null;
   return user.id;
 }

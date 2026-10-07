@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
@@ -22,11 +23,7 @@ export default async function ManagerCasesPage({
 }) {
   const { q, status, branch, page: pageParam } = await searchParams;
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("role, cluster_id").eq("id", user!.id).single();
+  const profile = await getCurrentProfile();
   const role = profile?.role ?? "sales_manager";
 
   if (role === "po_manager") {

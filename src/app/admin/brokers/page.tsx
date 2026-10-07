@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { BrokerAdmin } from "@/components/broker/BrokerAdmin";
 import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 import { AutoRefresh } from "@/components/broker/Refresh";
@@ -17,10 +18,7 @@ export default async function Page({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("role,is_active").eq("id", user!.id).single();
+  const profile = await getCurrentProfile();
   if (profile?.role !== "admin" || !profile.is_active) notFound();
   const page = Math.max(0, Number.parseInt(params.page ?? "0", 10) || 0);
   const status = ["pending", "approved", "rejected", "suspended"].includes(params.status ?? "")

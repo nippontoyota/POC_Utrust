@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentBroker } from "@/lib/supabase/auth";
 import { AppShell } from "@/components/AppShell";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -7,15 +7,7 @@ export default async function BrokerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: broker } = await supabase
-    .from("brokers")
-    .select("company_name, status, suspended_at, broker_ref")
-    .eq("id", user!.id)
-    .single();
+  const broker = await getCurrentBroker();
 
   if (!broker || broker.status !== "approved" || broker.suspended_at) {
     return (

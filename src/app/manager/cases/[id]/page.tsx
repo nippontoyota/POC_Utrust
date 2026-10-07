@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { formatINR } from "@/lib/formatCurrency";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -18,11 +19,7 @@ export default async function ManagerCaseDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const profile = await getCurrentProfile();
 
   if (profile?.role === "po_manager") {
     const { data } = await supabase.rpc("po_manager_case", { p_case_id: id });

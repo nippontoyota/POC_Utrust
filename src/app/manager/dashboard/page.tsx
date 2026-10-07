@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LayoutList, AlertTriangle, CheckCircle2, Wallet, Timer } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
 import { formatINR } from "@/lib/formatCurrency";
 import { isOverdue } from "@/lib/businessDays";
@@ -17,11 +18,7 @@ type CaseStatus = Enums<"case_status">;
 
 export default async function ManagerDashboardPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const profile = await getCurrentProfile();
 
   if (profile?.role === "po_manager") {
     const { data, error } = await supabase.rpc("po_manager_summary", {});

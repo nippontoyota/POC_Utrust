@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AccountForm } from "@/components/admin/AccountForm";
@@ -11,10 +12,7 @@ import { ResetPasswordForm } from "@/components/admin/ResetPasswordForm";
 export default async function EditAccountPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
 
   const [{ data: target }, { data: branches }, { data: clusters }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
