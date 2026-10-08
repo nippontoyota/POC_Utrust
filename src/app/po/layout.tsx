@@ -10,12 +10,12 @@ export default async function PoLayout({
 
   return (
     <AppShell
-      roleLabel="Purchase Officer"
+      roleLabel="Procurement Officer"
       name={profile?.full_name ?? ""}
       subtitle={profile?.branches?.name}
       links={[
         { href: "/po/dashboard", label: "Dashboard", icon: "dashboard" },
-        { href: "/po/cases", label: "Assigned Cases", icon: "cases" },
+        { href: "/po/cases", label: "My Cases", icon: "cases" },
       ]}
     >
       {children}

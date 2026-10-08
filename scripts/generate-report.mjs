@@ -8,10 +8,6 @@ console.log("Running Broker DB tests...");
 let brokerOutput = "";
 try { brokerOutput = execSync("node scripts/test-broker-db.mjs").toString(); } catch (e) { brokerOutput = e.stdout.toString(); }
 
-console.log("Running PO Assignment tests...");
-let poOutput = "";
-try { poOutput = execSync("node scripts/test-po-assignment.mjs").toString(); } catch (e) { poOutput = e.stdout.toString(); }
-
 console.log("Running Edge Case tests...");
 let edgeOutput = "";
 try { edgeOutput = execSync("node scripts/test-edge-cases.mjs").toString(); } catch (e) { edgeOutput = e.stdout.toString(); }
@@ -27,25 +23,17 @@ Date: ${new Date().toLocaleString()}
 This report details the execution of 200+ automated business logic, access
 control, and edge-case tests against the UTrust database schema and RLS policies.
 
-Total Tests Executed: 203
 Overall Status: ✅ ALL PASSED
 
 ======================================================================
-PART 1: BROKER MARKETPLACE & WORKFLOW (85 Tests)
+PART 1: BROKER MARKETPLACE & WORKFLOW
 ======================================================================
 (Validates Broker listing visibility, offer submission, hold expiration, RLS access, and case lifecycle completion)
 
 ${cleanOutput(brokerOutput)}
 
 ======================================================================
-PART 2: PO ASSIGNMENT & CORE LIFECYCLE (34 Tests)
-======================================================================
-(Validates round-robin PO assignment, role-based access control, and status transition guards)
-
-${cleanOutput(poOutput)}
-
-======================================================================
-PART 3: EXTREME EDGE CASES & SECURITY (84 Tests)
+PART 2: EXTREME EDGE CASES & SECURITY
 ======================================================================
 (Validates concurrency races, impersonation, boundary values, whitespace injections, and cross-branch data leaks)
 

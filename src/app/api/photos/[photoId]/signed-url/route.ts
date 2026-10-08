@@ -31,7 +31,7 @@ export async function GET(
 
   const { data: caseRow } = await service
     .from("cases")
-    .select("id, sales_officer_id, assigned_po_id, branch_id, status, broker_consent")
+    .select("id, po_id, branch_id, status, broker_consent")
     .eq("id", photo.case_id)
     .single();
 
@@ -47,10 +47,9 @@ export async function GET(
   let authorized = false;
 
   if (profile?.is_active) {
-    if (profile.role === "sales_officer" && caseRow.sales_officer_id === user.id) authorized = true;
-    if (profile.role === "purchase_officer" && caseRow.assigned_po_id === user.id) authorized = true;
+    if (profile.role === "purchase_officer" && caseRow.po_id === user.id) authorized = true;
     if (profile.role === "sales_manager" && profile.branch_id === caseRow.branch_id) authorized = true;
-    if (profile.role === "po_manager" && caseRow.assigned_po_id !== null) authorized = true;
+    if (profile.role === "po_manager") authorized = true;
     if (profile.role === "cluster_manager") {
       const { data: branch } = await service.from("branches").select("cluster_id").eq("id", caseRow.branch_id).single();
       if (branch?.cluster_id === profile.cluster_id) authorized = true;

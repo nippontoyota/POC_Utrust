@@ -43,7 +43,7 @@ export default async function ManagerCasesPage({
         <PageHeader
           eyebrow="Case control"
           title="All Cases"
-          description="Every case with an assigned Purchase Officer, across all branches. Customer details are never shown here."
+          description="Every submitted case, across all branches. Customer details are never shown here."
         />
 
         <form className="flex flex-wrap gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
@@ -94,7 +94,7 @@ export default async function ManagerCasesPage({
                     { label: "Branch", value: c.branch_name },
                     { label: "PO", value: `${c.po_name} (${c.po_employee_id})` },
                     { label: "Vehicle", value: [c.make, c.model, c.variant].filter(Boolean).join(" ") || "—" },
-                    { label: "Offer Price", value: c.offer_price != null ? formatINR(c.offer_price) : "—" },
+                    { label: "Offer Price", value: c.nippon_offer_price != null ? formatINR(c.nippon_offer_price) : "—" },
                   ]}
                 />
               ))}
@@ -106,7 +106,7 @@ export default async function ManagerCasesPage({
                   <tr>
                     <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
                     <th className="whitespace-nowrap px-4 py-3">Branch</th>
-                    <th className="whitespace-nowrap px-4 py-3">Purchase Officer</th>
+                    <th className="whitespace-nowrap px-4 py-3">Procurement Officer</th>
                     <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
                     <th className="whitespace-nowrap px-4 py-3">Offer Price</th>
                     <th className="whitespace-nowrap px-4 py-3">Status</th>
@@ -128,7 +128,7 @@ export default async function ManagerCasesPage({
                         {[c.make, c.model, c.variant].filter(Boolean).join(" ") || "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
-                        {c.offer_price != null ? formatINR(c.offer_price) : "—"}
+                        {c.nippon_offer_price != null ? formatINR(c.nippon_offer_price) : "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <StatusBadge status={c.status as Enums<"case_status">} />

@@ -19,15 +19,14 @@ export default async function CoordinatorCaseDetailPage({
 
   const { data: caseRow } = await supabase
     .from("cases")
-    .select("*, branches(name), sales_officer:profiles!cases_sales_officer_id_fkey(full_name, employee_id), po:profiles!cases_assigned_po_id_fkey(full_name, employee_id)")
+    .select("*, branches(name), po:profiles!cases_po_id_fkey(full_name, employee_id)")
     .eq("id", id)
     .single();
 
   if (!caseRow) notFound();
 
-  const [{ data: photos }, { data: offer }, { data: events }] = await Promise.all([
+  const [{ data: photos }, { data: events }] = await Promise.all([
     supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
-    supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
   ]);
 
@@ -50,12 +49,9 @@ export default async function CoordinatorCaseDetailPage({
         <CardTitle>Case Ownership</CardTitle>
         <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <DetailRow label="Branch" value={caseRow.branches?.name} />
+          <DetailRow label="SO handling this case" value={caseRow.so_name} />
           <DetailRow
-            label="Sales Officer"
-            value={caseRow.sales_officer ? `${caseRow.sales_officer.full_name} (${caseRow.sales_officer.employee_id})` : undefined}
-          />
-          <DetailRow
-            label="Assigned PO"
+            label="Procurement Officer"
             value={caseRow.po ? `${caseRow.po.full_name} (${caseRow.po.employee_id})` : undefined}
           />
           <DetailRow label="Created" value={new Date(caseRow.created_at).toLocaleString("en-IN")} />
@@ -90,14 +86,12 @@ export default async function CoordinatorCaseDetailPage({
         <PhotoGallery photos={photos ?? []} />
       </Card>
 
-      {offer && (
+      {caseRow.nippon_offer_price != null && (
         <Card>
-          <CardTitle>PO Evaluation</CardTitle>
+          <CardTitle>Nippon&apos;s Offer</CardTitle>
           <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-            <DetailRow label="Physical inspection" value={offer.inspection_completed ? "Completed" : "Not completed"} />
-            <DetailRow label="Nippon's offer" value={formatINR(offer.offer_price)} />
-            <DetailRow label="Inspection notes" value={offer.inspection_notes ?? undefined} />
-            <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
+            <DetailRow label="Offer price" value={formatINR(caseRow.nippon_offer_price)} />
+            <DetailRow label="Submitted at" value={caseRow.submitted_at ? new Date(caseRow.submitted_at).toLocaleString("en-IN") : undefined} />
           </div>
         </Card>
       )}

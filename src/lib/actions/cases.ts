@@ -23,7 +23,7 @@ export async function createDraftCase() {
   const { data: newCase, error } = await supabase
     .from("cases")
     .insert({
-      sales_officer_id: user.id,
+      po_id: user.id,
       branch_id: profile.branch_id,
     })
     .select("id")
@@ -33,5 +33,5 @@ export async function createDraftCase() {
     throw new Error(error?.message ?? "Failed to create case");
   }
 
-  redirect(`/so/cases/${newCase.id}`);
+  redirect(`/po/cases/${newCase.id}`);
 }

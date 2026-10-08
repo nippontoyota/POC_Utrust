@@ -56,9 +56,8 @@ const clusterId = await scalar(
 );
 const ids = Object.fromEntries(
   [
-    "so",
-    "otherSo",
     "po",
+    "otherPo",
     "salesManager",
     "clusterManager",
     "admin",
@@ -71,9 +70,8 @@ const ids = Object.fromEntries(
 for (const id of Object.values(ids))
   await query("insert into auth.users values($1)", [id]);
 for (const [key, role, branch] of [
-  ["so", "sales_officer", 0],
-  ["otherSo", "sales_officer", 1],
   ["po", "purchase_officer", 0],
+  ["otherPo", "purchase_officer", 1],
   ["salesManager", "sales_manager", 0],
 ]) {
   await query(
@@ -133,24 +131,26 @@ const fail = async (fn, pattern) => {
   await assert.rejects(fn, pattern);
   checks++;
 };
-async function newCase(branch = 0, state = "listed_for_brokers") {
+async function newCase(branch = 0, state = "listed_for_brokers", withPhoto = true) {
   const id = randomUUID();
   await query(
-    `insert into cases(id,branch_id,sales_officer_id,assigned_po_id,status,case_ref,broker_consent,listed_at,make,model,variant,registration_year,odometer_km,fuel_type,transmission,customer_name,customer_mobile,customer_expected_price)
-    values($1,$2,$3,$4,$5,$6,true,now(),'Toyota','Innova','G',2020,30000,'diesel','manual','PRIVATE NAME','PRIVATE PHONE',700000)`,
+    `insert into cases(id,branch_id,po_id,so_name,status,case_ref,broker_consent,listed_at,make,model,variant,registration_year,odometer_km,fuel_type,transmission,customer_name,customer_mobile,customer_expected_price,nippon_offer_price)
+    values($1,$2,$3,'Field SO',$4,$5,true,now(),'Toyota','Innova','G',2020,30000,'diesel','manual','PRIVATE NAME','PRIVATE PHONE',700000,620000)`,
     [
       id,
       branches[branch].id,
-      branch === 0 ? ids.so : ids.otherSo,
-      ids.po,
+      branch === 0 ? ids.po : ids.otherPo,
       state,
       `TEST-${id.slice(0, 8)}`,
     ],
   );
-  const photo = await scalar(
-    "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'left',100,'image/jpeg','test/left.jpg') returning id",
-    [id],
-  );
+  let photo = null;
+  if (withPhoto) {
+    photo = await scalar(
+      "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'left',100,'image/jpeg','test/left.jpg') returning id",
+      [id],
+    );
+  }
   return { id, photo };
 }
 const offer = async (key, id, amount, revision = 0) => {
@@ -178,25 +178,24 @@ const select = async (id, o, reason = "") => {
   ).rows[0];
 };
 
-const c = await newCase();
+const c = await newCase(0, "listed_for_brokers", false);
 check(
   (await market("broker1", c.id)).total === 0,
-  "Unreviewed listings hidden",
+  "Listing with zero photos stays hidden",
 );
 await fail(() => market("pending", c.id), /Approved broker/);
-await fail(
-  () => as("so", () => rpc("review_broker_photo", [c.photo, true])),
-  /Broker coordinator required/,
+const cPhoto = await scalar(
+  "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'left',100,'image/jpeg','test/left.jpg') returning id",
+  [c.id],
 );
-await fail(
-  () => as("otherSo", () => rpc("review_broker_photo", [c.photo, true])),
-  /Broker coordinator required/,
+check(
+  await scalar("select broker_visible from case_photos where id=$1", [cPhoto]) === true,
+  "Non-plate photo becomes broker-visible automatically on upload, no review step",
 );
-await as("coordinator", () => rpc("review_broker_photo", [c.photo, true]));
 const visible = await market("broker1", c.id);
 check(
   visible.total === 1 && visible.items[0].photos.length === 1,
-  "Reviewed listing visible",
+  "Listing with an auto-visible photo is immediately on the marketplace",
 );
 const text = JSON.stringify(visible);
 check(
@@ -204,6 +203,14 @@ check(
     !text.includes("700000") &&
     !text.includes("storage_path"),
   "No customer, internal pricing or storage paths exposed",
+);
+check(
+  visible.items[0].reference_price === 710000,
+  "Broker sees customer expected price + 10,000 as a single reference total",
+);
+check(
+  !text.includes("620000") && !text.includes("700000"),
+  "Neither the raw customer price nor Nippon's offer appear anywhere in the broker payload",
 );
 check(
   (await as("broker1", () => query("select * from cases"))).rows.length === 0,
@@ -224,7 +231,7 @@ await fail(
 await fail(
   () =>
     as("broker1", () =>
-      query("update cases set evaluation_started_at=now() where id=$1", [c.id]),
+      query("update cases set status='closed' where id=$1", [c.id]),
     ),
   /permission denied/,
 );
@@ -246,7 +253,7 @@ check(
 );
 await fail(
   () =>
-    act("so", c.id, "select", {
+    act("po", c.id, "select", {
       offer_id: high.id,
       revision: high.revision,
     }),
@@ -379,7 +386,6 @@ check(
 );
 
 const d = await newCase();
-await as("coordinator", () => rpc("review_broker_photo", [d.photo, true]));
 const dOffer = await offer("broker1", d.id, 400000);
 const dHold = await select(d.id, dOffer);
 await fail(
@@ -430,7 +436,6 @@ check(
 );
 
 const other = await newCase(1);
-await as("coordinator", () => rpc("review_broker_photo", [other.photo, true]));
 check(
   (await market("broker1", other.id)).total === 1,
   "Broker can browse across branches",
@@ -441,7 +446,7 @@ await fail(
 );
 await fail(
   () => as("salesManager", () => rpc("broker_report", [])),
-  /Active cluster manager required/,
+  /Active cluster manager or PO manager required/,
 );
 const outsideCluster = await newCase(2);
 const report = await as("clusterManager", () => rpc("broker_report", []));
@@ -466,23 +471,33 @@ check(
   "Report date range applied",
 );
 
-const e = await newCase(0, "pending_evaluation");
-await fail(
-  () =>
-    as("po", () =>
-      rpc("submit_po_evaluation", [e.id, true, "Inspected", 300000]),
-    ),
-  /Start the evaluation/,
+// Direct-purchase (Closed by UTrust) workflow: a single PO owns the case
+// end to end, no SO/evaluation handoff.
+const e = await newCase(0, "draft", false);
+await query(
+  "update cases set vehicle_reg_number='TEST-DIR-01', has_loan=false where id=$1",
+  [e.id],
 );
-await as("po", () => rpc("start_po_evaluation", [e.id]));
-await as("po", () =>
-  rpc("submit_po_evaluation", [e.id, true, "Inspected", 300000]),
+for (const category of ["front", "rear", "left", "right", "interior_odometer", "other"]) {
+  await query(
+    "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,$2,100,'image/jpeg',$3)",
+    [e.id, category, `test/${category}.jpg`],
+  );
+}
+await query(
+  "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'rc_book',100,'image/jpeg','test/rc.jpg')",
+  [e.id],
 );
-await as("so", () => rpc("record_customer_decision", [e.id, "accepted", null]));
-await as("so", () => rpc("close_case", [e.id]));
+await as("po", () => rpc("submit_case", [e.id]));
+check(
+  (await scalar("select status from cases where id=$1", [e.id])) === "pending_customer_decision",
+  "submit_case moves a complete draft directly to Awaiting Customer Decision",
+);
+await as("po", () => rpc("record_customer_decision", [e.id, "accepted", null]));
+await as("po", () => rpc("close_case", [e.id]));
 check(
   (await scalar("select status from cases where id=$1", [e.id])) === "closed",
-  "Direct purchase workflow still completes",
+  "Single-PO direct purchase workflow completes end to end",
 );
 await rpc("expire_broker_reservations", []);
 await rpc("expire_broker_reservations", []);
@@ -498,24 +513,23 @@ const plate = await scalar(
   "insert into case_photos(case_id,category,is_plate_visible,file_size_bytes,mime_type,storage_path) values($1,'front',true,100,'image/jpeg','test/front.jpg') returning id",
   [f.id],
 );
-await fail(
-  () => as("coordinator", () => rpc("review_broker_photo", [plate, true])),
-  /Plate-visible/,
+check(
+  await scalar("select broker_visible from case_photos where id=$1", [plate]) === false,
+  "Plate-visible photo never becomes broker-visible, even automatically",
 );
 await fail(
   () =>
-    as("so", () =>
+    as("po", () =>
       query("update case_photos set broker_visible=true where id=$1", [plate]),
     ),
   /permission denied/,
 );
-await as("coordinator", () => rpc("review_broker_photo", [f.photo, true]));
 await fail(
   () =>
-    as("so", () =>
+    as("po", () =>
       query(
         "insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by,broker_visible) values($1,'left',100,'image/jpeg','test/unsafe.jpg',$2,true)",
-        [f.id, ids.so],
+        [f.id, ids.po],
       ),
     ),
   /permission denied/,
@@ -535,8 +549,8 @@ check(
 );
 const f2 = await offer("broker2", f.id, 510000);
 check(
-  (await as("so", () => rpc("so_broker_summary", []))).awaiting_selection >= 1,
-  "SO still receives a read-only offer-selection count on their own cases",
+  (await as("po", () => rpc("po_broker_summary", []))).awaiting_selection >= 1,
+  "PO still receives a read-only offer-selection count on their own cases",
 );
 const results = await Promise.all([
   act("coordinator", f.id, "select", {
@@ -602,8 +616,8 @@ check(
   "Deadline boundary is exclusive",
 );
 check(
-  (await as("so", () => rpc("so_broker_summary", []))).reserved === 0,
-  "SO count honors expiry before cron",
+  (await as("po", () => rpc("po_broker_summary", []))).reserved === 0,
+  "PO count honors expiry before cron",
 );
 await rpc("expire_broker_reservations", []);
 check(
@@ -614,7 +628,7 @@ check(
 );
 await fail(
   () => as("broker1", () => rpc("broker_report", [])),
-  /Active cluster manager required/,
+  /Active cluster manager or PO manager required/,
 );
 await fail(
   () => as("broker1", () => rpc("staff_broker_case", [f.id])),
@@ -636,13 +650,13 @@ await fail(
   /Not authorized/,
 );
 await query("update profiles set is_active=true where id=$1", [ids.coordinator]);
-const draft = await as("so", () =>
+const draft = await as("po", () =>
   scalar(
-    "insert into cases(branch_id,sales_officer_id) values($1,$2) returning id",
-    [branches[0].id, ids.so],
+    "insert into cases(branch_id,po_id) values($1,$2) returning id",
+    [branches[0].id, ids.po],
   ),
 );
-await as("so", () =>
+await as("po", () =>
   query(
     "update cases set make='Toyota', customer_name='Draft customer' where id=$1",
     [draft],
@@ -654,8 +668,8 @@ check(
 );
 await fail(
   () =>
-    as("so", () =>
-      query("update cases set assigned_po_id=$1 where id=$2", [ids.so, draft]),
+    as("po", () =>
+      query("update cases set branch_id=$1 where id=$2", [branches[1].id, draft]),
     ),
   /permission denied/,
 );
@@ -670,41 +684,42 @@ check(
   "Brokers cannot change account approval",
 );
 const rcCase = await newCase(0, "draft");
-await query("update cases set vehicle_reg_number='TEST-RC-001',has_loan=false,variant=null,customer_expected_price=null where id=$1", [rcCase.id]);
-await as("so", () => query("update cases set color='Pearl white' where id=$1", [rcCase.id]));
-check(await scalar("select color from cases where id=$1", [rcCase.id]) === "Pearl white", "SO can save a custom vehicle colour");
-check((await as("otherSo", () => query("update cases set color='Red' where id=$1 returning id", [rcCase.id]))).rows.length === 0, "Other SO cannot edit vehicle colour");
-await fail(() => as("so", () => query("update cases set customer_expected_price=-1 where id=$1", [rcCase.id])), /check constraint/);
+await query(
+  "update cases set vehicle_reg_number='TEST-RC-001',has_loan=false,variant=null,customer_expected_price=620000,nippon_offer_price=600000 where id=$1",
+  [rcCase.id],
+);
+await as("po", () => query("update cases set color='Pearl white' where id=$1", [rcCase.id]));
+check(await scalar("select color from cases where id=$1", [rcCase.id]) === "Pearl white", "PO can save a custom vehicle colour");
+check((await as("otherPo", () => query("update cases set color='Red' where id=$1 returning id", [rcCase.id]))).rows.length === 0, "Other PO cannot edit a case they don't own");
+await fail(() => as("po", () => query("update cases set customer_expected_price=-1 where id=$1", [rcCase.id])), /check constraint/);
 for (const category of ["front", "rear", "right", "interior_odometer", "other"]) {
   await query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,$2,100,'image/jpeg',$3)", [rcCase.id, category, `test/${category}.jpg`]);
 }
-await fail(() => as("so", () => rpc("submit_case_for_evaluation", [rcCase.id])), /RC book photo is required/);
+await fail(() => as("po", () => rpc("submit_case", [rcCase.id])), /RC book photo is required/);
 check(await scalar("select status from cases where id=$1", [rcCase.id]) === "draft", "Missing RC leaves the draft unchanged");
-await fail(() => as("so", () => query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'application/pdf','test/rc.pdf',$2)", [rcCase.id, ids.so])), /rc_book_must_be_image/);
-const rcPhoto = await as("so", () => scalar("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'image/jpeg','test/rc.jpg',$2) returning id", [rcCase.id, ids.so]));
-await fail(() => as("so", () => query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'image/jpeg','test/duplicate.jpg',$2)", [rcCase.id, ids.so])), /one_rc_book_photo_per_case/);
+await fail(() => as("po", () => query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'application/pdf','test/rc.pdf',$2)", [rcCase.id, ids.po])), /rc_book_must_be_image/);
+const rcPhoto = await as("po", () => scalar("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'image/jpeg','test/rc.jpg',$2) returning id", [rcCase.id, ids.po]));
+check(await scalar("select broker_visible from case_photos where id=$1", [rcPhoto]) === false, "RC book photo is never broker-visible, even automatically");
+await fail(() => as("po", () => query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path,uploaded_by) values($1,'rc_book',100,'image/jpeg','test/duplicate.jpg',$2)", [rcCase.id, ids.po])), /one_rc_book_photo_per_case/);
 await query("delete from case_photos where case_id=$1 and category='other'", [rcCase.id]);
-await fail(() => as("so", () => rpc("submit_case_for_evaluation", [rcCase.id])), /6 vehicle photos/);
+await fail(() => as("po", () => rpc("submit_case", [rcCase.id])), /6 vehicle photos/);
 await query("insert into case_photos(case_id,category,file_size_bytes,mime_type,storage_path) values($1,'other',100,'image/jpeg','test/other.jpg')", [rcCase.id]);
-await fail(() => as("otherSo", () => rpc("submit_case_for_evaluation", [rcCase.id])), /Not authorized/);
+await fail(() => as("otherPo", () => rpc("submit_case", [rcCase.id])), /Not authorized/);
 await query("update cases set model=null where id=$1", [rcCase.id]);
-await fail(() => as("so", () => rpc("submit_case_for_evaluation", [rcCase.id])), /missing required fields/);
+await fail(() => as("po", () => rpc("submit_case", [rcCase.id])), /missing required fields/);
 await query("update cases set model='Innova' where id=$1", [rcCase.id]);
-await as("so", () => rpc("submit_case_for_evaluation", [rcCase.id]));
-check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_evaluation", "Six vehicle photos plus RC allow submission without variant or expected price");
+await query("update cases set so_name=null where id=$1", [rcCase.id]);
+await fail(() => as("po", () => rpc("submit_case", [rcCase.id])), /missing required fields/);
+await query("update cases set so_name='Field SO' where id=$1", [rcCase.id]);
+await as("po", () => rpc("submit_case", [rcCase.id]));
+check(await scalar("select status from cases where id=$1", [rcCase.id]) === "pending_customer_decision", "Six vehicle photos plus RC and both prices allow submission without a variant");
 check(await scalar("select variant from cases where id=$1", [rcCase.id]) === null, "Optional variant stays null after submission");
-check(await scalar("select customer_expected_price from cases where id=$1", [rcCase.id]) === null, "Optional expected price stays null after submission");
-check(await as("po", () => scalar("select color from cases where id=$1", [rcCase.id])) === "Pearl white", "Assigned PO can read the saved colour");
-check((await as("po", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Assigned PO can inspect RC");
+check(await as("po", () => scalar("select color from cases where id=$1", [rcCase.id])) === "Pearl white", "Owning PO can read the saved colour");
+check((await as("po", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Owning PO can inspect RC");
 check((await as("salesManager", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 1, "Sales Manager can inspect RC");
-check((await as("otherSo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other SO cannot inspect RC");
-await as("po", () => rpc("start_po_evaluation", [rcCase.id]));
-await as("po", () => rpc("submit_po_evaluation", [rcCase.id, true, "RC reviewed", 450000]));
-await as("so", () => rpc("record_customer_decision", [rcCase.id, "rejected", true]));
-check(await scalar("select status from cases where id=$1", [rcCase.id]) === "listed_for_brokers", "Reject + consent lists immediately, with zero approved photos yet -- that's now Broker Coordinator's first job, not a precondition on the SO");
-await fail(() => as("so", () => rpc("review_broker_photo", [rcCase.photo, true])), /Broker coordinator required/);
-await fail(() => as("coordinator", () => rpc("review_broker_photo", [rcPhoto, true])), /rc_book_never_broker_visible/);
-await as("coordinator", () => rpc("review_broker_photo", [rcCase.photo, true]));
+check((await as("otherPo", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Other PO cannot inspect RC");
+await as("po", () => rpc("record_customer_decision", [rcCase.id, "rejected", true]));
+check(await scalar("select status from cases where id=$1", [rcCase.id]) === "listed_for_brokers", "Reject + consent lists immediately -- no Coordinator approval gate on the listing itself");
 const rcMarket = JSON.stringify(await market("broker1", rcCase.id));
 check(!rcMarket.includes(rcPhoto) && !rcMarket.includes("rc_book"), "Broker listing excludes RC metadata");
 check((await as("broker1", () => query("select id from case_photos where id=$1", [rcPhoto]))).rows.length === 0, "Broker cannot read RC directly");

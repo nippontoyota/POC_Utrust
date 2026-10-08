@@ -72,6 +72,11 @@ export default async function Page({
         <CardTitle>Vehicle Photos</CardTitle>
         <PhotoGallery photos={v.photos} />
       </Card>
+      {v.reference_price != null && (
+        <p className="text-sm">
+          Reference price: <strong>{formatINR(v.reference_price)}</strong>
+        </p>
+      )}
       <p className="rounded-full border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-sm font-black capitalize text-[var(--muted)]">
         {v.availability}
         {v.expires_at && (

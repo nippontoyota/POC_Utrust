@@ -11,8 +11,7 @@ const inputClass =
   "rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100";
 
 const ROLE_LABELS: Record<string, string> = {
-  sales_officer: "Sales Officer",
-  purchase_officer: "Purchase Officer",
+  purchase_officer: "Procurement Officer",
   sales_manager: "Sales Manager",
   cluster_manager: "Cluster Manager",
   po_manager: "PO Manager",
@@ -45,7 +44,7 @@ export default async function AdminUsersPage({
       <PageHeader
         eyebrow="System administration"
         title="Users"
-        description="Every staff account: Sales/Purchase Officers and the Manager family. Brokers are managed separately."
+        description="Every staff account: Procurement Officers and the Manager family. Brokers are managed separately."
         actions={
           <Link href="/admin/users/new">
             <Button type="button">

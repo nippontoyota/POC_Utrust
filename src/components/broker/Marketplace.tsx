@@ -132,6 +132,11 @@ export async function Marketplace({
               {v.odometer_km.toLocaleString("en-IN")} km
             </p>
             <PhotoGallery photos={v.photos.slice(0, 2)} />
+            {v.reference_price != null && (
+              <p className="text-sm">
+                Reference price: <strong>{formatINR(v.reference_price)}</strong>
+              </p>
+            )}
             {v.own_offer && (
               <p className="text-sm">
                 Your offer: <strong>{formatINR(v.own_offer.amount)}</strong>{" "}

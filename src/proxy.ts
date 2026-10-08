@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 const ROLE_HOME: Record<string, string> = {
-  sales_officer: "/so/dashboard",
   purchase_officer: "/po/dashboard",
   sales_manager: "/manager/dashboard",
   cluster_manager: "/manager/dashboard",
@@ -15,14 +14,13 @@ const ROLE_HOME: Record<string, string> = {
 const MANAGER_ROLES = new Set(["sales_manager", "cluster_manager", "po_manager"]);
 
 const PUBLIC_PATHS = ["/login", "/signup", "/broker-signup", "/auth/callback"];
-const STAFF_PATHS = ["/admin", "/manager", "/po", "/so", "/coordinator"];
+const STAFF_PATHS = ["/admin", "/manager", "/po", "/coordinator"];
 
 function ownsStaffPath(role: string, pathname: string) {
   return (
     (role === "admin" && pathname.startsWith("/admin")) ||
     (MANAGER_ROLES.has(role) && pathname.startsWith("/manager")) ||
     (role === "purchase_officer" && pathname.startsWith("/po")) ||
-    (role === "sales_officer" && pathname.startsWith("/so")) ||
     (role === "broker_coordinator" && pathname.startsWith("/coordinator"))
   );
 }

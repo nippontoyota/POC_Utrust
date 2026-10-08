@@ -70,12 +70,10 @@ if (!state.branches) {
 }
 await save();
 const definitions = {
-  so: { role: "sales_officer", branch: 0 },
   po: { role: "purchase_officer", branch: 0 },
   salesManager: { role: "sales_manager", branch: 0 },
   clusterManager: { role: "cluster_manager", cluster: true },
   admin: { role: "admin" },
-  otherSo: { role: "sales_officer", branch: 1 },
   otherPo: { role: "purchase_officer", branch: 1 },
   otherSalesManager: { role: "sales_manager", branch: 1 },
   coordinator: { role: "broker_coordinator" },
@@ -108,7 +106,7 @@ async function login(key) {
   const authResponse = page.waitForResponse(r => r.url().includes("/auth/v1/token") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   assert((await authResponse).ok(), `${key}: password sign-in failed`);
-  const rolePath = account.role === "broker" ? "broker" : account.role === "sales_officer" ? "so" : account.role === "purchase_officer" ? "po" : account.role === "admin" ? "admin" : account.role === "broker_coordinator" ? "coordinator" : "manager";
+  const rolePath = account.role === "broker" ? "broker" : account.role === "purchase_officer" ? "po" : account.role === "admin" ? "admin" : account.role === "broker_coordinator" ? "coordinator" : "manager";
   try {
     await page.waitForURL(`**/${rolePath}/dashboard`, { timeout: 60000, waitUntil: "domcontentloaded" });
   } catch (error) {
@@ -146,15 +144,14 @@ const scenarios = [
   ["hold", "Competing selection and active 48h hold", "Fortuner", "broker_offer_selected"],
   ["release", "Release, rejection and reconfirmed bidding", "Urban Cruiser", "listed_for_brokers"],
   ["reject", "Customer declines broker listing", "Etios", "rejected_not_listed"],
-  ["withdraw", "SO withdraws evaluation", "Yaris", "withdrawn"],
+  ["withdraw", "PO withdraws before customer decision", "Yaris", "withdrawn"],
   ["cancel", "Accepted direct purchase cancelled", "Camry", "cancelled"],
   ["consent", "Suspension and customer consent withdrawal", "Urban Cruiser Hyryder", "withdrawn"],
-  ["evaluation", "Awaiting PO evaluation", "Corolla", "pending_evaluation"],
   ["decision", "Awaiting customer decision", "Rumion", "pending_customer_decision"],
   ["purchase", "Awaiting direct purchase completion", "Innova Crysta", "purchase_completion_pending"],
   ["draft", "Saved draft", "Glanza", "draft"],
 ].map(([key, name, model, expected], index) => ({ key, name, model, expected, index: index + 1,
-  so: index % 2 ? "otherSo" : "so", po: index % 2 ? "otherPo" : "po" }));
+  po: index % 2 ? "otherPo" : "po" }));
 async function syntheticImage(page, vehicle, angle) {
   const base64 = await page.evaluate(({ vehicle, angle, run }) => {
     const c = document.createElement("canvas"); c.width = 1000; c.height = 650;
@@ -180,23 +177,25 @@ async function syntheticImage(page, vehicle, angle) {
   return { name: "test-fixture.png", mimeType: "image/png", buffer: Buffer.from(base64, "base64") };
 }
 async function prepare(v) {
-  const page = actors[v.so].page;
+  const page = actors[v.po].page;
   if (!state.cases[v.key]) {
-    await navigate(page, "/so/cases");
+    await navigate(page, "/po/cases");
     await page.getByRole("button", { name: "New Case", exact: true }).click();
-    await page.waitForURL(/\/so\/cases\/[0-9a-f-]{36}$/);
+    await page.waitForURL(/\/po\/cases\/[0-9a-f-]{36}$/);
     state.cases[v.key] = { id: page.url().split("/").at(-1), name: v.name, expected: v.expected };
     await save();
   }
   const id = state.cases[v.key].id;
-  await step(`${v.key}: draft and photos`, async () => {
-    await navigate(page, `/so/cases/${id}`);
+  await step(`${v.key}: draft, photos and prices`, async () => {
+    await navigate(page, `/po/cases/${id}`);
     const values = {
+      "SO handling this case": `${run} TEST SO ${v.index}`,
       "Customer name": `${run} TEST ONLY ${v.index} - ${v.name}`,
       "Customer mobile number": `90000000${String(v.index).padStart(2, "0")}`,
       "Vehicle registration number": `${run}${String(v.index).padStart(2, "0")}`,
       "Registration year": "2022", "Odometer reading (km)": String(18000 + v.index * 1000),
       "Ownership count": "1", "Customer expected price (INR)": String(700000 + v.index * 10000),
+      "Nippon's offer price (INR)": String(600000 + v.index * 10000),
     };
     for (const [label, value] of Object.entries(values)) await page.getByLabel(label, { exact: false }).fill(value);
     await page.getByLabel("Make", { exact: false }).selectOption("Toyota");
@@ -208,7 +207,7 @@ async function prepare(v) {
     await page.getByRole("button", { name: "Save Draft", exact: true }).click();
     await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
     const existingPhotos = unwrap(await admin.from("case_photos").select("id,category").eq("case_id", id));
-    if (existingPhotos.length < 7) await denied(v.so, "submit_case_for_evaluation", { p_case_id: id }, /photo/i, `${v.key}: submission without required photos rejected`);
+    if (existingPhotos.length < 7) await denied(v.po, "submit_case", { p_case_id: id }, /photo/i, `${v.key}: submission without required photos rejected`);
     for (const angle of ["Front", "Rear", "Left side", "Right side", "Interior / dashboard (odometer visible)", "Add photo", "Registration certificate"]) {
       const slot = page.locator("div.rounded-md").filter({ has: page.getByText(angle, { exact: true }) });
       if (await slot.getByRole("button", { name: "Remove", exact: true }).count()) continue;
@@ -217,8 +216,10 @@ async function prepare(v) {
       if (angle === "Add photo") await expect(page.getByText("Additional photos (1/5)", { exact: true })).toBeVisible();
       else await expect(slot.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
     }
-    const photos = unwrap(await admin.from("case_photos").select("id,category,storage_path").eq("case_id", id));
+    const photos = unwrap(await admin.from("case_photos").select("id,category,storage_path,broker_visible,is_plate_visible").eq("case_id", id));
     check(photos.length === 7 && photos.some(p => p.category === "rc_book"), `${v.key}: six vehicle photos and private RC recorded`);
+    check(photos.filter(p => p.broker_visible).length === 4, `${v.key}: the four non-plate vehicle photos are broker-visible automatically, no review step`);
+    check(!photos.find(p => p.category === "rc_book").broker_visible, `${v.key}: RC book photo is never broker-visible`);
     state.cases[v.key].rcPhoto = photos.find(p => p.category === "rc_book").id;
     await page.reload();
     await expect(page.getByLabel("Customer name")).toHaveValue(values["Customer name"]);
@@ -226,58 +227,34 @@ async function prepare(v) {
   });
   if (v.key === "draft") return;
   await step(`${v.key}: submit`, async () => {
-    await navigate(page, `/so/cases/${id}`);
-    if ((await row(id)).status === "draft") await uiRPC(page, "submit_case_for_evaluation", () => page.getByRole("button", { name: "Submit for Evaluation", exact: true }).click());
-    await status(id, "pending_evaluation");
-    const c = await row(id);
-    assert.equal(c.assigned_po_id, actors[v.po].id);
-    state.cases[v.key].reference = c.case_ref;
-    check(true, `${v.key}: assigned to active PO in owning branch`);
-  });
-  if (["evaluation", "withdraw"].includes(v.key)) return;
-  await step(`${v.key}: evaluation`, async () => {
-    const po = actors[v.po].page;
-    await navigate(po, `/po/cases/${id}`);
-    if (!(await row(id)).evaluation_started_at) {
-      await denied(v.po, "submit_po_evaluation", { p_case_id: id, p_inspection_completed: true, p_inspection_notes: "Synthetic test", p_offer_price: 600000 }, /Start the evaluation/i, `${v.key}: PO must start evaluation`);
-      await uiRPC(po, "start_po_evaluation", () => po.getByRole("button", { name: "Start Evaluation", exact: true }).click());
-    }
-    if ((await row(id)).status === "pending_evaluation") {
-      await po.getByRole("checkbox").check();
-      await po.locator("textarea").fill(`${run}: ${v.name}. Synthetic inspection and price only; no real vehicle inspected or money paid.`);
-      await po.locator('input[type="number"]').fill(String(600000 + v.index * 10000));
-      await uiRPC(po, "submit_po_evaluation", () => po.getByRole("button", { name: "Submit Evaluation & Offer", exact: true }).click());
-    }
+    await navigate(page, `/po/cases/${id}`);
+    if ((await row(id)).status === "draft") await uiRPC(page, "submit_case", () => page.getByRole("button", { name: "Submit Case", exact: true }).click());
     await status(id, "pending_customer_decision");
-    const offers = unwrap(await admin.from("case_offers").select("*").eq("case_id", id));
-    check(offers.length === 1 && offers[0].purchase_officer_id === actors[v.po].id, `${v.key}: immutable PO evaluation stored`);
+    const c = await row(id);
+    assert.equal(c.po_id, actors[v.po].id);
+    assert.equal(c.nippon_offer_price, 600000 + v.index * 10000);
+    state.cases[v.key].reference = c.case_ref;
+    check(true, `${v.key}: case reference generated and Nippon's offer stored on submission`);
   });
-  if (v.key === "decision") return;
+  if (["withdraw", "decision"].includes(v.key)) return;
   await step(`${v.key}: customer decision`, async () => {
-    await navigate(page, `/so/cases/${id}`);
+    await navigate(page, `/po/cases/${id}`);
     const accept = ["direct", "cancel", "purchase"].includes(v.key);
     const expected = accept ? "purchase_completion_pending" : v.key === "reject" ? "rejected_not_listed" : "listed_for_brokers";
     if ((await row(id)).status === "pending_customer_decision") {
-      await page.getByRole("button", { name: accept ? "Customer Accepted" : "Customer Rejected", exact: true }).click();
-      const name = accept ? "Yes, confirm" : v.key === "reject" ? "No, do not list" : "Yes, list with brokers";
+      await page.getByRole("button", { name: accept ? "Closed by UTrust" : "To Brokers", exact: true }).click();
+      const name = accept ? "Yes, confirm" : v.key === "reject" ? "No, do not list" : "Yes, to brokers";
       await uiRPC(page, "record_customer_decision", () => page.getByRole("button", { name, exact: true }).click());
     }
     await status(id, expected);
   });
   if (!["broker", "hold", "release", "consent"].includes(v.key)) return;
-  await step(`${v.key}: privacy and photo approval`, async () => {
-    const coordinatorPage = actors.coordinator.page;
-    const hidden = unwrap(await rpc("broker1", "broker_marketplace", { p_case_id: id }));
-    if (hidden.total === 0) {
-      check(true, `${v.key}: unreviewed photos keep listing hidden`);
-      await navigate(coordinatorPage, `/coordinator/cases/${id}`);
-      await uiRPC(coordinatorPage, "review_broker_photo", () => coordinatorPage.getByRole("checkbox", { name: "Reviewed: no plate, personal details or documents. Publish to brokers." }).first().click());
-    }
+  await step(`${v.key}: broker visibility`, async () => {
     const market = unwrap(await rpc("broker1", "broker_marketplace", { p_case_id: id }));
-    check(market.total === 1 && market.items[0].photos.length === 1, `${v.key}: reviewed listing visible across branches`);
+    check(market.total === 1 && market.items[0].photos.length === 4, `${v.key}: listing visible across branches with its four auto-visible photos`);
     const serialized = JSON.stringify(market);
     const c = await row(id);
-    check(!serialized.includes(c.customer_name) && !serialized.includes(c.customer_mobile) && !serialized.includes('"customer_expected_price"') && !serialized.includes('"storage_path"') && !serialized.includes(state.cases[v.key].rcPhoto), `${v.key}: broker payload excludes customer, internal price and RC`);
+    check(!serialized.includes(c.customer_name) && !serialized.includes(c.customer_mobile) && !serialized.includes('"customer_expected_price"') && !serialized.includes('"nippon_offer_price"') && !serialized.includes('"storage_path"') && !serialized.includes(state.cases[v.key].rcPhoto), `${v.key}: broker payload excludes customer, internal price and RC`);
   });
 }
 async function bid(key, v, amount) {
@@ -323,7 +300,7 @@ async function adminAction(key, verb, reason) {
   await uiRPC(page, "manage_broker", () => article.getByRole("button", { name: verb, exact: true }).click());
 }
 
-const SELF_SIGNUP_ROLES = new Set(["sales_officer", "purchase_officer"]);
+const SELF_SIGNUP_ROLES = new Set(["purchase_officer"]);
 try {
   for (const [key, def] of Object.entries(definitions)) {
     const { role } = def;
@@ -347,9 +324,9 @@ try {
       if (role === "broker") {
         unwrap(await api.from("brokers").insert({ id: account.id, company_name: account.company, contact_name: `${run} TEST CONTACT`, phone: "9000000000", email: account.email }));
       } else {
-        // Sales/Purchase Officer can self-insert their own profile; every other
-        // role (Manager family, Admin) is owner-provisioned only, so it needs
-        // the service-role client, same as scripts/seed-manager.mjs.
+        // Procurement Officer can self-insert their own profile; every other
+        // role (Manager family, Admin, Broker Coordinator) is owner-provisioned
+        // only, so it needs the service-role client, same as seed-manager.mjs.
         const scope = def.cluster ? { cluster_id: state.branches[0].cluster_id } : def.branch !== undefined ? { branch_id: state.branches[def.branch].id } : {};
         unwrap(await (SELF_SIGNUP_ROLES.has(role) ? api : admin).from("profiles").insert({ id: account.id, employee_id: account.employeeId, full_name: `${run} TEST ${key}`, role, ...scope }));
       }
@@ -358,7 +335,7 @@ try {
     unwrap(await api.auth.signInWithPassword({ email: account.email, password: credentials.password }));
     actors[key] = { id: account.id, api };
   }
-  for (const key of ["so", "po", "salesManager", "clusterManager", "admin", "coordinator", "otherSo", "otherPo", "otherSalesManager"]) await login(key);
+  for (const key of ["po", "salesManager", "clusterManager", "admin", "coordinator", "otherPo", "otherSalesManager"]) await login(key);
   if (mode === "--run-live") {
     await step("broker approvals and admin/manager scope", async () => {
       await denied("pending", "broker_marketplace", {}, /Approved broker/i, "Pending broker cannot browse");
@@ -377,23 +354,23 @@ try {
     for (const v of scenarios) await prepare(v);
     await step("direct: close", async () => {
       const id = state.cases.direct.id;
-      const page = actors.so.page;
-      await navigate(page, `/so/cases/${id}`);
+      const page = actors.po.page;
+      await navigate(page, `/po/cases/${id}`);
       await page.getByRole("button", { name: "Mark as Closed", exact: true }).click();
       await uiRPC(page, "close_case", () => page.getByRole("button", { name: "Yes, close it", exact: true }).click());
       await status(id, "closed");
-      await denied("so", "close_case", { p_case_id: id }, /not awaiting completion/i, "Direct purchase cannot close twice");
+      await denied("po", "close_case", { p_case_id: id }, /not awaiting completion/i, "Direct purchase cannot close twice");
     });
     await step("withdraw: reason recorded", async () => {
-      const page = actors.otherSo.page;
-      await navigate(page, `/so/cases/${state.cases.withdraw.id}`);
+      const page = actors.otherPo.page;
+      await navigate(page, `/po/cases/${state.cases.withdraw.id}`);
       await page.getByRole("button", { name: "Withdraw this case", exact: true }).click();
-      await page.locator("textarea").fill(`${run}: synthetic customer withdrew before evaluation`);
+      await page.locator("textarea").fill(`${run}: synthetic customer withdrew before a decision was recorded`);
       await uiRPC(page, "withdraw_case", () => page.getByRole("button", { name: "Confirm withdrawal", exact: true }).click());
     });
     await step("cancel: reason recorded", async () => {
-      const page = actors.so.page;
-      await navigate(page, `/so/cases/${state.cases.cancel.id}`);
+      const page = actors.po.page;
+      await navigate(page, `/po/cases/${state.cases.cancel.id}`);
       await page.getByRole("button", { name: "Cancel Deal", exact: true }).click();
       await page.locator("textarea").fill(`${run}: synthetic purchase cancelled before payment`);
       await uiRPC(page, "cancel_case", () => page.getByRole("button", { name: "Confirm cancellation", exact: true }).click());
@@ -412,7 +389,7 @@ try {
       const hold = await holdFor("broker");
       await denied("broker2", "broker_case_action", { p_case_id: id, p_action: "offer", p_payload: { amount: 690000, revision: 1 } }, /not open/i, "Bidding blocked while another broker holds the vehicle");
       await denied("broker2", "broker_case_action", { p_case_id: id, p_action: "release", p_payload: { reservation_id: hold.id, reason: "Not my hold" } }, /Not authorized/i, "A competing broker cannot release the lock");
-      await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /Not authorized/i, "SO (even the case owner) cannot complete a broker deal");
+      await denied("otherPo", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /Not authorized/i, "PO (even the case owner) cannot complete a broker deal");
       await denied("coordinator", "broker_case_action", { p_case_id: id, p_action: "complete", p_payload: { reservation_id: hold.id, payment_complete: true, handover_complete: true } }, /acceptance/i, "Broker completion requires customer acceptance");
       await staffAction("broker", "Customer accepted");
       assert.equal((await holdFor("broker")).expires_at, hold.expires_at);
@@ -442,7 +419,7 @@ try {
       await staffAction("release", "Customer rejected", "synthetic customer rejected broker price");
       await bid("broker2", "release", 665000);
       await selectBid("release", "broker2");
-      await staffAction("release", "Release reservation", "SO releases synthetic hold for corrected paperwork");
+      await staffAction("release", "Release reservation", "Coordinator releases synthetic hold for corrected paperwork");
       await bid("broker1", "release", 668000);
       const b1 = actors.broker1.page;
       await uiRPC(b1, "broker_case_action", () => b1.getByRole("button", { name: "Withdraw offer", exact: true }).click());
@@ -492,16 +469,16 @@ try {
     c.managerURL = `${baseURL}/manager/cases/${c.id}`;
     const events = unwrap(await admin.from("case_events").select("event_type,actor_id,actor_role,metadata,notes,created_at").eq("case_id", c.id).order("created_at"));
     c.events = events;
-    if (v.key !== "draft") check(events.some(e => e.event_type === "submitted_for_evaluation"), `${v.key}: submission audit persisted`);
+    if (v.key !== "draft") check(events.some(e => e.event_type === "case_submitted"), `${v.key}: submission audit persisted`);
     const expectedEvents = {
-      direct: ["evaluation_started", "evaluation_submitted", "customer_decision_recorded", "case_closed"],
-      broker: ["evaluation_submitted", "listed_for_brokers", "broker_offer", "broker_offer_selected", "broker_accept", "broker_complete"],
+      direct: ["case_submitted", "customer_decision_recorded", "case_closed"],
+      broker: ["case_submitted", "listed_for_brokers", "broker_offer", "broker_offer_selected", "broker_accept", "broker_complete"],
       hold: ["listed_for_brokers", "broker_offer", "broker_offer_selected", "broker_accept"],
       release: ["broker_offer", "broker_offer_selected", "broker_release", "broker_reject", "broker_withdraw_offer"],
-      reject: ["evaluation_submitted", "customer_decision_recorded"],
+      reject: ["case_submitted", "customer_decision_recorded"],
       withdraw: ["case_withdrawn"], cancel: ["customer_decision_recorded", "case_cancelled"],
       consent: ["broker_offer_selected", "broker_consent_withdrawn"],
-      decision: ["evaluation_submitted"], purchase: ["evaluation_submitted", "customer_decision_recorded"],
+      decision: ["case_submitted"], purchase: ["case_submitted", "customer_decision_recorded"],
     };
     for (const type of expectedEvents[v.key] || []) {
       assert(events.some(e => e.event_type === type && e.actor_id && e.actor_role), `${v.key}: missing ${type} actor/audit`);
@@ -526,20 +503,18 @@ try {
   console.log("VERIFY access boundaries and real photo downloads");
   {
     const id = state.cases.hold.id;
-    const wrong = unwrap(await actors.otherSo.api.from("cases").select("id").eq("id", id));
-    check(wrong.length === 0, "Other SO cannot read a colleague's case");
     const wrongPO = unwrap(await actors.otherPo.api.from("cases").select("id").eq("id", id));
-    check(wrongPO.length === 0, "Unassigned PO cannot read the case");
+    check(wrongPO.length === 0, "A PO who doesn't own the case cannot read it");
     const wrongSalesManager = unwrap(await actors.otherSalesManager.api.from("cases").select("id").eq("id", id));
     check(wrongSalesManager.length === 0, "Sales Manager cannot read another branch's case");
     for (const table of ["cases", "case_photos", "broker_offers", "broker_reservations"]) {
       check(unwrap(await actors.broker1.api.from(table).select("id")).length === 0, `Broker cannot read raw ${table}`);
     }
-    await denied("otherSo", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Wrong owner" } }, /Not authorized/i, "Other SO cannot change broker workflow");
-    await denied("so", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Case owner no longer has write access" } }, /Not authorized/i, "SO (even the case owner) cannot change broker workflow -- that's Broker Coordinator's job now");
-    await denied("broker1", "broker_report", {}, /Active cluster manager required/i, "Broker cannot read manager reports");
+    await denied("otherPo", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Wrong owner" } }, /Not authorized/i, "A PO who doesn't own the case cannot change its broker workflow");
+    await denied("po", "broker_case_action", { p_case_id: id, p_action: "withdraw_consent", p_payload: { reason: "Case owner no longer has write access" } }, /Not authorized/i, "PO (even the case owner) cannot change broker workflow -- that's Broker Coordinator's job");
+    await denied("broker1", "broker_report", {}, /Active cluster manager/i, "Broker cannot read manager reports");
     const rc = state.cases.hold.rcPhoto;
-    for (const [key, expected] of [["broker1", 403], ["otherSalesManager", 403], ["po", 200], ["salesManager", 200], ["coordinator", 200]]) {
+    for (const [key, expected] of [["broker1", 403], ["otherPo", 403], ["otherSalesManager", 403], ["po", 200], ["salesManager", 200], ["coordinator", 200]]) {
       const res = await actors[key].page.request.get(`/api/photos/${rc}/signed-url`);
       check(res.status() === expected, `${key}: RC endpoint returns ${expected}`);
       if (expected === 200) {
@@ -561,7 +536,7 @@ try {
   for (const [key, verb] of [["broker1", "approve"], ["broker2", "approve"], ["pending", "reject"], ["broker2", "suspend"], ["broker2", "reactivate"]]) {
     check(adminEvents.some(e => e.broker_id === actors[key].id && e.actor_id === actors.admin.id && e.action === verb && e.reason.startsWith(run)), `${key}: ${verb} audit contains the admin's id and reason`);
   }
-  await denied("salesManager", "broker_report", {}, /Active cluster manager required/i, "Sales Manager has no broker_report access at all");
+  await denied("salesManager", "broker_report", {}, /Active cluster manager/i, "Sales Manager has no broker_report access at all");
   check(clusterReport.cases.some(c => c.id === state.cases.broker.id), "Cluster Manager report includes a sale from another branch in the same cluster");
   const completed = unwrap(await admin.from("broker_reservations").select("*").eq("case_id", state.cases.broker.id).eq("status", "completed"));
   check(completed.length === 1 && completed[0].amount === 650000 && completed[0].payment_complete && completed[0].handover_complete, "Completed sale has one price snapshot with payment and handover recorded");
@@ -583,7 +558,6 @@ try {
     ["admin", ["/admin/dashboard", "/admin/users", "/admin/brokers?status=approved"]],
     ["salesManager", ["/manager/dashboard", `/manager/cases?q=${run}`]],
     ["coordinator", ["/coordinator/cases", `/coordinator/cases/${state.cases.hold.id}`]],
-    ["so", ["/so/dashboard", "/so/cases"]], ["otherSo", ["/so/dashboard", "/so/cases"]],
     ["po", ["/po/dashboard", "/po/cases"]], ["otherPo", ["/po/dashboard", "/po/cases"]],
     ["broker1", ["/broker/dashboard", "/broker/offers", "/broker/reservations", "/broker/history"]],
     ["broker2", ["/broker/dashboard", "/broker/offers", "/broker/reservations", "/broker/history"]],

@@ -1,13 +1,3 @@
-export type PoManagerPendingCase = {
-  id: string;
-  submitted_at: string | null;
-  evaluation_started_at: string | null;
-  po_id: string;
-  po_name: string;
-  po_employee_id: string;
-  branch_name: string;
-};
-
 export type PoManagerPoRow = {
   id: string;
   name: string;
@@ -15,15 +5,12 @@ export type PoManagerPoRow = {
   branch_name: string;
   is_active: boolean;
   assigned_total: number;
-  pending: number;
-  evaluated: number;
+  closed_total: number;
 };
 
 export type PoManagerSummary = {
   total_cases: number;
-  evaluated_total: number;
   closed_total: number;
-  pending_cases: PoManagerPendingCase[];
   pos: PoManagerPoRow[];
 };
 
@@ -37,9 +24,8 @@ export type PoManagerCaseListItem = {
   model: string | null;
   variant: string | null;
   status: string;
-  offer_price: number | null;
+  nippon_offer_price: number | null;
   submitted_at: string | null;
-  evaluation_started_at: string | null;
 };
 
 export type PoManagerCaseList = {
@@ -52,8 +38,7 @@ export type PoManagerCaseDetail = {
   case_ref: string | null;
   status: string;
   branch_name: string;
-  sales_officer_name: string | null;
-  sales_officer_employee_id: string | null;
+  so_name: string | null;
   po_name: string | null;
   po_employee_id: string | null;
   vehicle_reg_number: string | null;
@@ -67,9 +52,9 @@ export type PoManagerCaseDetail = {
   ownership_count: number | null;
   has_loan: boolean | null;
   lender_note: string | null;
+  nippon_offer_price: number | null;
   created_at: string;
   submitted_at: string | null;
-  evaluation_started_at: string | null;
 };
 
 export type ManagerFunctions = {

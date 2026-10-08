@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Check, LockKeyhole, X } from "lucide-react";
 import type { StaffBrokerCase } from "@/lib/broker";
 import { formatINR } from "@/lib/formatCurrency";
-import { PhotoGallery } from "@/components/PhotoGallery";
 import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { ActionFeedback, useBrokerAction } from "./useBrokerAction";
@@ -21,7 +20,7 @@ export function StaffBrokerControls({
   data: StaffBrokerCase;
   readOnly: boolean;
 }) {
-  const { busy, error, success, act, run } = useBrokerAction();
+  const { busy, error, success, act } = useBrokerAction();
   const [reason, setReason] = useState("");
   const [payment, setPayment] = useState(false);
   const [handover, setHandover] = useState(false);
@@ -36,55 +35,12 @@ export function StaffBrokerControls({
       Date.parse(r.expires_at) <= Date.parse(data.server_now),
   );
   const open = ["listed_for_brokers", "broker_offer_selected"].includes(status);
-  const canReview =
-    !readOnly && (open || status === "pending_customer_decision");
   const actionPayload = { reservation_id: hold?.id ?? "", reason };
   return (
     <section className="mt-8 space-y-5 border-t border-zinc-200 pt-6 dark:border-zinc-800">
       <AutoRefresh />
       <h2 className="text-lg font-semibold">Broker Marketplace</h2>
       <ActionFeedback error={error} success={success} />
-      {canReview && (
-        <details
-          className="border-b border-zinc-200 pb-4 dark:border-zinc-800"
-          open={!data.photos.some((p) => p.broker_visible)}
-        >
-          <summary className="cursor-pointer text-sm font-medium">
-            Photo Review ({data.photos.filter((p) => p.broker_visible).length}{" "}
-            approved)
-          </summary>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[...data.photos]
-              .sort((a, b) => a.category.localeCompare(b.category) || a.id.localeCompare(b.id))
-              .map((photo) => (
-              <div key={photo.id} className="min-w-0 space-y-2">
-                <PhotoGallery photos={[photo]} />
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    disabled={busy || photo.is_plate_visible || photo.category === "rc_book"}
-                    checked={!!photo.broker_visible}
-                    onChange={(e) =>
-                      run("review_broker_photo", {
-                        p_photo_id: photo.id,
-                        p_visible: e.target.checked,
-                      })
-                    }
-                    className="mt-1"
-                  />
-                  <span>
-                    {photo.category === "rc_book"
-                      ? "Private: RC book document"
-                      : photo.is_plate_visible
-                      ? "Private: registration plate visible"
-                      : "Reviewed: no plate, personal details or documents. Publish to brokers."}
-                  </span>
-                </label>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
       {open && !data.photos.some((p) => p.broker_visible) && (
         <p className="text-sm text-amber-700 dark:text-amber-400">
           Hidden from the marketplace until at least one photo is approved.

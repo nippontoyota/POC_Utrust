@@ -19,7 +19,7 @@ export default function SignupPage() {
   const [branches, setBranches] = useState<Tables<"branches">[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<Enums<"app_role">>("sales_officer");
+  const role: Enums<"app_role"> = "purchase_officer";
   const [branchId, setBranchId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -119,7 +119,8 @@ export default function SignupPage() {
             <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--brand)]">Staff access</p>
             <h1 className="mt-3 text-4xl font-black leading-tight text-zinc-950 dark:text-zinc-100">Create a controlled workspace account.</h1>
             <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
-              Sales Officers capture vehicles and RC book photos. Purchase Officers evaluate assigned cases.
+              Procurement Officers capture customer and vehicle details, make Nippon&apos;s offer, and record the
+              customer&apos;s decision.
             </p>
           </div>
         </div>
@@ -147,19 +148,6 @@ export default function SignupPage() {
               onChange={(e) => setFullName(e.target.value)}
               className={inputClass}
             />
-          </FormField>
-
-          <FormField label="Role">
-            <select
-              name="role"
-              autoComplete="off"
-              value={role}
-              onChange={(e) => setRole(e.target.value as Enums<"app_role">)}
-              className={inputClass}
-            >
-              <option value="sales_officer">Sales Officer</option>
-              <option value="purchase_officer">Purchase Officer</option>
-            </select>
           </FormField>
 
           <FormField label="Branch">

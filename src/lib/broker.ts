@@ -66,6 +66,7 @@ export type MarketplaceVehicle = {
   transmission: string;
   availability: "open" | "reserved" | "unavailable";
   expires_at: string | null;
+  reference_price: number | null;
   own_offer: BrokerOffer | null;
   photos: BrokerPhoto[];
   reservations: Reservation[];
@@ -101,15 +102,10 @@ export type MarketplaceFunctions = {
     Returns: Json;
   };
   staff_broker_case: { Args: { p_case_id: string }; Returns: Json };
-  review_broker_photo: {
-    Args: { p_photo_id: string; p_visible: boolean };
-    Returns: undefined;
-  };
   manage_broker: {
     Args: { p_broker_id: string; p_action: string; p_reason: string };
     Returns: undefined;
   };
-  start_po_evaluation: { Args: { p_case_id: string }; Returns: undefined };
   broker_report: {
     Args: {
       p_from?: string;
@@ -119,7 +115,7 @@ export type MarketplaceFunctions = {
     };
     Returns: Json;
   };
-  so_broker_summary: {
+  po_broker_summary: {
     Args: Record<PropertyKey, never>;
     Returns: {
       listed: number;

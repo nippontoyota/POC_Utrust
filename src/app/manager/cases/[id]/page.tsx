@@ -26,9 +26,8 @@ export default async function ManagerCaseDetailPage({
     const caseRow = data as unknown as PoManagerCaseDetail | null;
     if (!caseRow) notFound();
 
-    const [{ data: photos }, { data: offer }, { data: events }] = await Promise.all([
+    const [{ data: photos }, { data: events }] = await Promise.all([
       supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
-      supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
       supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
     ]);
 
@@ -51,12 +50,9 @@ export default async function ManagerCaseDetailPage({
           <CardTitle>Case Ownership</CardTitle>
           <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <DetailRow label="Branch" value={caseRow.branch_name} />
+            <DetailRow label="SO handling this case" value={caseRow.so_name} />
             <DetailRow
-              label="Sales Officer"
-              value={caseRow.sales_officer_name ? `${caseRow.sales_officer_name} (${caseRow.sales_officer_employee_id})` : undefined}
-            />
-            <DetailRow
-              label="Assigned PO"
+              label="Procurement Officer"
               value={caseRow.po_name ? `${caseRow.po_name} (${caseRow.po_employee_id})` : undefined}
             />
             <DetailRow label="Created" value={new Date(caseRow.created_at).toLocaleString("en-IN")} />
@@ -87,14 +83,12 @@ export default async function ManagerCaseDetailPage({
           <PhotoGallery photos={photos ?? []} />
         </Card>
 
-        {offer && (
+        {caseRow.nippon_offer_price != null && (
           <Card>
-            <CardTitle>PO Evaluation</CardTitle>
+            <CardTitle>Nippon&apos;s Offer</CardTitle>
             <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-              <DetailRow label="Physical inspection" value={offer.inspection_completed ? "Completed" : "Not completed"} />
-              <DetailRow label="Nippon's offer" value={formatINR(offer.offer_price)} />
-              <DetailRow label="Inspection notes" value={offer.inspection_notes ?? undefined} />
-              <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
+              <DetailRow label="Offer price" value={formatINR(caseRow.nippon_offer_price)} />
+              <DetailRow label="Submitted at" value={caseRow.submitted_at ? new Date(caseRow.submitted_at).toLocaleString("en-IN") : undefined} />
             </div>
           </Card>
         )}
@@ -129,15 +123,14 @@ export default async function ManagerCaseDetailPage({
 
   const { data: caseRow } = await supabase
     .from("cases")
-    .select("*, branches(name), sales_officer:profiles!cases_sales_officer_id_fkey(full_name, employee_id), po:profiles!cases_assigned_po_id_fkey(full_name, employee_id)")
+    .select("*, branches(name), po:profiles!cases_po_id_fkey(full_name, employee_id)")
     .eq("id", id)
     .single();
 
   if (!caseRow) notFound();
 
-  const [{ data: photos }, { data: offer }, { data: events }] = await Promise.all([
+  const [{ data: photos }, { data: events }] = await Promise.all([
     supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
-    supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
   ]);
 
@@ -160,12 +153,9 @@ export default async function ManagerCaseDetailPage({
         <CardTitle>Case Ownership</CardTitle>
         <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <DetailRow label="Branch" value={caseRow.branches?.name} />
+          <DetailRow label="SO handling this case" value={caseRow.so_name} />
           <DetailRow
-            label="Sales Officer"
-            value={caseRow.sales_officer ? `${caseRow.sales_officer.full_name} (${caseRow.sales_officer.employee_id})` : undefined}
-          />
-          <DetailRow
-            label="Assigned PO"
+            label="Procurement Officer"
             value={caseRow.po ? `${caseRow.po.full_name} (${caseRow.po.employee_id})` : undefined}
           />
           <DetailRow label="Created" value={new Date(caseRow.created_at).toLocaleString("en-IN")} />
@@ -200,18 +190,16 @@ export default async function ManagerCaseDetailPage({
         <PhotoGallery photos={photos ?? []} />
       </Card>
 
-      {offer && (
+      {caseRow.nippon_offer_price != null && (
         <Card>
-          <CardTitle>PO Evaluation</CardTitle>
+          <CardTitle>Nippon&apos;s Offer</CardTitle>
           <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-            <DetailRow label="Physical inspection" value={offer.inspection_completed ? "Completed" : "Not completed"} />
-            <DetailRow label="Nippon's offer" value={formatINR(offer.offer_price)} />
-            <DetailRow label="Inspection notes" value={offer.inspection_notes ?? undefined} />
-            <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
+            <DetailRow label="Offer price" value={formatINR(caseRow.nippon_offer_price)} />
+            <DetailRow label="Submitted at" value={caseRow.submitted_at ? new Date(caseRow.submitted_at).toLocaleString("en-IN") : undefined} />
             {caseRow.customer_expected_price != null && (
               <DetailRow
                 label="Difference from customer expectation"
-                value={formatINR(offer.offer_price - caseRow.customer_expected_price)}
+                value={formatINR(caseRow.nippon_offer_price - caseRow.customer_expected_price)}
               />
             )}
           </div>
@@ -259,7 +247,7 @@ export default async function ManagerCaseDetailPage({
             const metadata = e.metadata && typeof e.metadata === "object" && !Array.isArray(e.metadata)
               ? e.metadata
               : {};
-            const amount = metadata.amount ?? metadata.offer_price;
+            const amount = metadata.amount ?? metadata.offer_price ?? metadata.nippon_offer_price;
             return (
               <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0">
                 <div className="flex flex-col items-center">
