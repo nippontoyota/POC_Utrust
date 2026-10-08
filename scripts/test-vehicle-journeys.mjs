@@ -226,28 +226,49 @@ async function prepare(v) {
     check(true, `${v.key}: draft survives browser reload`);
   });
   if (v.key === "draft") return;
+  // "withdraw" and "decision" deliberately leave the case undecided at
+  // pending_customer_decision (to test withdrawal before a decision, and the
+  // fallback decision panel, respectively) -- the PO's own UI now requires
+  // answering the decision before Submit Case is even enabled, so those two
+  // scenarios submit directly via RPC instead of through the combined form.
+  const accept = ["direct", "cancel", "purchase"].includes(v.key);
+  const bypassDecision = ["withdraw", "decision"].includes(v.key);
+  const expectedAfterSubmit = bypassDecision
+    ? "pending_customer_decision"
+    : accept ? "purchase_completion_pending" : v.key === "reject" ? "rejected_not_listed" : "listed_for_brokers";
   await step(`${v.key}: submit`, async () => {
     await navigate(page, `/po/cases/${id}`);
-    if ((await row(id)).status === "draft") await uiRPC(page, "submit_case", () => page.getByRole("button", { name: "Submit Case", exact: true }).click());
-    await status(id, "pending_customer_decision");
+    const current = await row(id);
+    if (current.status === "draft") {
+      if (bypassDecision) {
+        const { error } = await rpc(v.po, "submit_case", { p_case_id: id });
+        assert(!error, JSON.stringify(error));
+      } else {
+        if (accept) {
+          await page.getByRole("button", { name: "Yes", exact: true }).click();
+        } else {
+          await page.getByRole("button", { name: "No", exact: true }).click();
+          const consentName = v.key === "reject" ? "No, do not list" : "Yes, to brokers";
+          await page.getByRole("button", { name: consentName, exact: true }).click();
+        }
+        await uiRPC(page, "submit_case", () => page.getByRole("button", { name: "Submit Case", exact: true }).click());
+      }
+    } else if (current.status === "pending_customer_decision" && !bypassDecision) {
+      const { error } = await rpc(v.po, "record_customer_decision", {
+        p_case_id: id,
+        p_decision: accept ? "accepted" : "rejected",
+        ...(accept ? {} : { p_broker_consent: v.key !== "reject" }),
+      });
+      assert(!error, JSON.stringify(error));
+    }
+    await status(id, expectedAfterSubmit);
     const c = await row(id);
     assert.equal(c.po_id, actors[v.po].id);
     assert.equal(c.nippon_offer_price, 600000 + v.index * 10000);
     state.cases[v.key].reference = c.case_ref;
-    check(true, `${v.key}: case reference generated and Nippon's offer stored on submission`);
+    check(true, `${v.key}: case reference generated, Nippon's offer stored, and customer decision recorded in one submission`);
   });
   if (["withdraw", "decision"].includes(v.key)) return;
-  await step(`${v.key}: customer decision`, async () => {
-    await navigate(page, `/po/cases/${id}`);
-    const accept = ["direct", "cancel", "purchase"].includes(v.key);
-    const expected = accept ? "purchase_completion_pending" : v.key === "reject" ? "rejected_not_listed" : "listed_for_brokers";
-    if ((await row(id)).status === "pending_customer_decision") {
-      await page.getByRole("button", { name: accept ? "Closed by UTrust" : "To Brokers", exact: true }).click();
-      const name = accept ? "Yes, confirm" : v.key === "reject" ? "No, do not list" : "Yes, to brokers";
-      await uiRPC(page, "record_customer_decision", () => page.getByRole("button", { name, exact: true }).click());
-    }
-    await status(id, expected);
-  });
   if (!["broker", "hold", "release", "consent"].includes(v.key)) return;
   await step(`${v.key}: broker visibility`, async () => {
     const market = unwrap(await rpc("broker1", "broker_marketplace", { p_case_id: id }));

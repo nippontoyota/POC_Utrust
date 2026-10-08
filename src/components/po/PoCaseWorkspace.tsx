@@ -95,6 +95,8 @@ export function PoCaseWorkspace({
   const [otherMake, setOtherMake] = useState(false);
   const [otherModel, setOtherModel] = useState(false);
   const [otherColor, setOtherColor] = useState(false);
+  const [draftDecision, setDraftDecision] = useState<"" | "accepted" | "rejected">("");
+  const [draftBrokerConsent, setDraftBrokerConsent] = useState<"" | "yes" | "no">("");
   const models = VEHICLE_MAKES.find(({ make }) => make === fields.make)?.models ?? [];
   const colors = getVehicleColors(fields.make, fields.model);
   const hasVehicle = !!fields.make.trim() && !!fields.model.trim();
@@ -292,6 +294,15 @@ export function PoCaseWorkspace({
     const saved = await saveDraft({ requireComplete: true });
     if (!saved) return;
 
+    if (!draftDecision) {
+      setError("Record whether the customer accepted Nippon's offer before submitting.");
+      return;
+    }
+    if (draftDecision === "rejected" && !draftBrokerConsent) {
+      setError("Record whether to list this vehicle to brokers before submitting.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -299,10 +310,25 @@ export function PoCaseWorkspace({
       p_case_id: initialCase.id,
     });
 
+    if (submitError) {
+      setSubmitting(false);
+      setError(submitError.message);
+      return;
+    }
+
+    const { error: decisionError } = await supabase.rpc("record_customer_decision", {
+      p_case_id: initialCase.id,
+      p_decision: draftDecision,
+      ...(draftDecision === "rejected" ? { p_broker_consent: draftBrokerConsent === "yes" } : {}),
+    });
+
     setSubmitting(false);
 
-    if (submitError) {
-      setError(submitError.message);
+    if (decisionError) {
+      setError(
+        `The case was submitted, but recording the customer's decision failed: ${decisionError.message}. Use the Customer Decision section below to record it.`
+      );
+      router.refresh();
       return;
     }
 
@@ -407,7 +433,10 @@ export function PoCaseWorkspace({
   const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
   const rcBookPhoto = photos.find(p => p.category === "rc_book");
   const requiredFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
-  const canSubmit = requiredFilled && totalPhotos >= 6 && !!rcBookPhoto && !submitting && !uploadingCategory;
+  const draftDecisionReady =
+    draftDecision === "accepted" || (draftDecision === "rejected" && draftBrokerConsent !== "");
+  const canSubmit =
+    requiredFilled && totalPhotos >= 6 && !!rcBookPhoto && draftDecisionReady && !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -785,6 +814,60 @@ export function PoCaseWorkspace({
       </Card>
 
       {isDraft && (
+        <Card>
+          <CardTitle>Customer Decision</CardTitle>
+          <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Did the customer accept Nippon&apos;s offer? <span className="text-red-500">*</span>
+          </p>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant={draftDecision === "accepted" ? "primary" : "secondary"}
+              className={draftDecision === "accepted" ? "bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600" : ""}
+              onClick={() => {
+                setDraftDecision("accepted");
+                setDraftBrokerConsent("");
+              }}
+            >
+              Yes
+            </Button>
+            <Button
+              type="button"
+              variant={draftDecision === "rejected" ? "destructive" : "secondary"}
+              onClick={() => setDraftDecision("rejected")}
+            >
+              No
+            </Button>
+          </div>
+
+          {draftDecision === "rejected" && (
+            <div className="mt-4">
+              <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                List this vehicle to brokers? <span className="text-red-500">*</span>
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant={draftBrokerConsent === "yes" ? "primary" : "secondary"}
+                  className={draftBrokerConsent === "yes" ? "bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500" : ""}
+                  onClick={() => setDraftBrokerConsent("yes")}
+                >
+                  Yes, to brokers
+                </Button>
+                <Button
+                  type="button"
+                  variant={draftBrokerConsent === "no" ? "destructive" : "secondary"}
+                  onClick={() => setDraftBrokerConsent("no")}
+                >
+                  No, do not list
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {isDraft && (
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={() => void saveDraft()} disabled={saving}>
             {saving ? "Saving..." : "Save Draft"}
@@ -792,7 +875,11 @@ export function PoCaseWorkspace({
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title={!canSubmit ? "Upload the RC book photo and at least 6 vehicle photos, including all required angles" : undefined}
+            title={
+              !canSubmit
+                ? "Upload the RC book photo and at least 6 vehicle photos (including all required angles), and record the customer's decision"
+                : undefined
+            }
           >
             {submitting ? "Submitting..." : "Submit Case"}
           </Button>
@@ -906,16 +993,21 @@ export function PoCaseWorkspace({
               </div>
             </div>
           ) : (
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setPendingAction("accept")}
-                className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
-              >
-                Closed by UTrust
-              </Button>
-              <Button variant="destructive" onClick={() => setPendingAction("reject")}>
-                To Brokers
-              </Button>
+            <div>
+              <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Did the customer accept Nippon&apos;s offer?
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setPendingAction("accept")}
+                  className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
+                >
+                  Yes
+                </Button>
+                <Button variant="destructive" onClick={() => setPendingAction("reject")}>
+                  No
+                </Button>
+              </div>
             </div>
           )}
         </Card>
