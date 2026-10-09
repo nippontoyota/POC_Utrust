@@ -397,8 +397,7 @@ export function CaseWorkspace({
   const additionalPhotos = photos.filter((p) => p.category === "other");
   const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
   const rcBookPhoto = photos.find(p => p.category === "rc_book");
-  const requiredFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
-  const canSubmit = requiredFilled && totalPhotos >= 6 && !!rcBookPhoto && !submitting && !uploadingCategory;
+  const canSubmit = !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -679,7 +678,7 @@ export function CaseWorkspace({
       <Card>
         <h2 className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Vehicle Photos</h2>
         <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          5 required angles, plus at least 1 more (minimum 6, maximum {MAX_TOTAL_PHOTOS} total). Max 5MB per photo.
+          Optional. 5 standard angles, plus up to {MAX_TOTAL_PHOTOS} total. Max 5MB per photo.
         </p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -729,7 +728,7 @@ export function CaseWorkspace({
       </Card>
 
       <Card>
-        <CardTitle>RC Book Photo <span className="text-red-500">*</span></CardTitle>
+        <CardTitle>RC Book Photo</CardTitle>
         <div className="max-w-sm">
           <PhotoSlot
             label="Registration certificate"
@@ -740,7 +739,7 @@ export function CaseWorkspace({
             onRemove={rcBookPhoto && isDraft && !uploadingCategory && !submitting ? () => removePhoto(rcBookPhoto) : undefined}
           />
         </div>
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Required before evaluation. Image only, up to 5MB. Private to authorized staff.</p>
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Optional. Image only, up to 5MB. Private to authorized staff.</p>
       </Card>
 
       {initialCase.status === "pending_customer_decision" && offer && (
@@ -949,7 +948,7 @@ export function CaseWorkspace({
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title={!canSubmit ? "Upload the RC book photo and at least 6 vehicle photos, including all required angles" : undefined}
+            title={uploadingCategory ? "Wait for the photo upload to finish" : undefined}
           >
             {submitting ? "Submitting..." : "Submit for Evaluation"}
           </Button>
