@@ -70,7 +70,7 @@ export default async function ManagerCaseDetailPage({
             <DetailRow label="Make" value={caseRow.make} />
             <DetailRow label="Model" value={caseRow.model} />
             <DetailRow label="Variant" value={caseRow.variant} />
-            <DetailRow label="Registration year" value={caseRow.registration_year?.toString()} />
+            <DetailRow label="Model year" value={caseRow.registration_year?.toString()} />
             <DetailRow label="Fuel type" value={caseRow.fuel_type} />
             <DetailRow label="Transmission" value={caseRow.transmission} />
             <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
@@ -182,7 +182,7 @@ export default async function ManagerCaseDetailPage({
           <DetailRow label="Model" value={caseRow.model} />
           <DetailRow label="Variant" value={caseRow.variant} />
           <DetailRow label="Colour" value={caseRow.color} />
-          <DetailRow label="Registration year" value={caseRow.registration_year?.toString()} />
+          <DetailRow label="Model year" value={caseRow.registration_year?.toString()} />
           <DetailRow label="Fuel type" value={caseRow.fuel_type} />
           <DetailRow label="Transmission" value={caseRow.transmission} />
           <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />

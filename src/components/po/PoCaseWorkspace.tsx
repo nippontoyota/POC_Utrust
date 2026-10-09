@@ -32,9 +32,18 @@ export function PoCaseWorkspace({
   const router = useRouter();
   const supabase = createClient();
 
+  const CURRENT_YEAR = new Date().getFullYear();
+  const MIN_REGISTRATION_YEAR = 1980;
+  const REGISTRATION_YEARS = Array.from(
+    { length: CURRENT_YEAR - MIN_REGISTRATION_YEAR + 1 },
+    (_, i) => CURRENT_YEAR - i
+  );
+
   const [inspectionCompleted, setInspectionCompleted] = useState(false);
   const [inspectionNotes, setInspectionNotes] = useState("");
   const [offerPrice, setOfferPrice] = useState("");
+  const [registrationYear, setRegistrationYear] = useState(caseRow.registration_year?.toString() ?? "");
+  const [ownershipCount, setOwnershipCount] = useState(caseRow.ownership_count?.toString() ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,12 +54,22 @@ export function PoCaseWorkspace({
     setError(null);
 
     const price = parseFloat(offerPrice);
+    const year = parseInt(registrationYear, 10);
+    const owners = parseInt(ownershipCount, 10);
     if (!inspectionCompleted) {
       setError("You must confirm the physical inspection is complete.");
       return;
     }
     if (!Number.isFinite(price) || price < 1 || price > 999999999) {
       setError("Enter an offer price between INR 1 and INR 99,99,99,999.");
+      return;
+    }
+    if (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR) {
+      setError(`Model year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`);
+      return;
+    }
+    if (!Number.isInteger(owners) || owners < 1 || owners > 10) {
+      setError("Ownership count must be between 1 and 10.");
       return;
     }
 
@@ -60,6 +79,8 @@ export function PoCaseWorkspace({
       p_inspection_completed: inspectionCompleted,
       p_inspection_notes: inspectionNotes || null,
       p_offer_price: price,
+      p_registration_year: year,
+      p_ownership_count: owners,
     });
     setSubmitting(false);
 
@@ -102,7 +123,7 @@ export function PoCaseWorkspace({
           <DetailRow label="Model" value={caseRow.model} />
           <DetailRow label="Variant" value={caseRow.variant} />
           <DetailRow label="Colour" value={caseRow.color} />
-          <DetailRow label="Registration year" value={caseRow.registration_year?.toString()} />
+          <DetailRow label="Model year" value={caseRow.registration_year?.toString()} />
           <DetailRow label="Fuel type" value={caseRow.fuel_type} />
           <DetailRow label="Transmission" value={caseRow.transmission} />
           <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
@@ -161,6 +182,43 @@ export function PoCaseWorkspace({
               className={`mt-1 w-full ${inputClass}`}
             />
           </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Model year <span className="text-red-500 dark:text-red-400">*</span>
+              </label>
+              <select
+                value={registrationYear}
+                onChange={(e) => setRegistrationYear(e.target.value)}
+                className={`mt-1 ${inputClass}`}
+              >
+                <option value="">Select...</option>
+                {REGISTRATION_YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Ownership count <span className="text-red-500 dark:text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                value={ownershipCount}
+                onChange={(e) => setOwnershipCount(e.target.value)}
+                className={`mt-1 ${inputClass}`}
+              />
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Verify and fill in the SO-reported model year and ownership count — both affect valuation.
+          </p>
 
           <div className="mt-4">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">

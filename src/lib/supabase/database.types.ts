@@ -599,6 +599,8 @@ export type Database = {
           p_inspection_completed: boolean
           p_inspection_notes: string | null
           p_offer_price: number
+          p_registration_year: number
+          p_ownership_count: number
         }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }

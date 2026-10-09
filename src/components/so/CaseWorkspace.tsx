@@ -78,7 +78,7 @@ export function CaseWorkspace({
     model: initialCase.model ?? "",
     variant: initialCase.variant ?? "",
     color: initialCase.color ?? "",
-    registration_year: initialCase.registration_year?.toString() ?? CURRENT_YEAR.toString(),
+    registration_year: initialCase.registration_year?.toString() ?? "",
     fuel_type: (initialCase.fuel_type ?? "") as Enums<"fuel_type"> | "",
     transmission: (initialCase.transmission ?? "") as Enums<"transmission_type"> | "",
     odometer_km: initialCase.odometer_km?.toString() ?? "",
@@ -112,7 +112,6 @@ export function CaseWorkspace({
       ["vehicle_reg_number", "Vehicle registration number is required."],
       ["make", "Make is required."],
       ["model", "Model is required."],
-      ["registration_year", "Registration year is required."],
       ["fuel_type", "Fuel type is required."],
       ["transmission", "Transmission is required."],
       ["odometer_km", "Odometer reading is required."],
@@ -134,7 +133,7 @@ export function CaseWorkspace({
 
     const year = Number(fields.registration_year);
     if (fields.registration_year && (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR)) {
-      return `Registration year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
+      return `Model year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
     }
 
     const odometer = Number(fields.odometer_km);
@@ -571,13 +570,14 @@ export function CaseWorkspace({
               />
             </FormField>
           )}
-          <FormField label="Registration year" required>
+          <FormField label="Model year">
             <select
               disabled={!isDraft}
               value={fields.registration_year}
               onChange={(e) => update("registration_year", e.target.value)}
               className={inputClass}
             >
+              <option value="">Optional</option>
               {REGISTRATION_YEARS.map((year) => (
                 <option key={year} value={year}>
                   {year}
