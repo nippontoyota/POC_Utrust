@@ -326,26 +326,8 @@ export function CaseWorkspace({
     else router.refresh();
   }
 
-  function confirmAccept() {
-    runDecision(() =>
-      supabase.rpc("record_customer_decision", { p_case_id: initialCase.id, p_decision: "accepted" })
-    );
-  }
-
-  function confirmReject(consent: boolean) {
-    runDecision(() =>
-      supabase.rpc("record_customer_decision", {
-        p_case_id: initialCase.id,
-        p_decision: "rejected",
-        p_broker_consent: consent,
-      })
-    );
-  }
-
-  async function saveCounterOffer() {
-    // No-op: counter offers are now recorded by the PO.
-    // Kept to avoid breaking any lingering references.
-  }
+  // No-op: counter offers are now recorded by the PO.
+  async function saveCounterOffer() {}
 
   function confirmClose() {
     runDecision(() => supabase.rpc("close_case", { p_case_id: initialCase.id }));
@@ -767,58 +749,11 @@ export function CaseWorkspace({
             <p className="mb-5 text-xs text-zinc-500 dark:text-zinc-400">No negotiation rounds recorded yet. The PO will update this as discussions progress.</p>
           )}
 
-          {pendingAction === "accept" ? (
-            <div className="rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">
-              <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
-                Confirm the customer has accepted Nippon&apos;s offer?
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={confirmAccept}
-                  disabled={decisionSubmitting}
-                  className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
-                >
-                  {decisionSubmitting ? "Recording..." : "Yes, confirm"}
-                </Button>
-                <Button variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : pendingAction === "reject" ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40">
-              <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
-                Does the customer consent to listing this vehicle with brokers?
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => confirmReject(true)}
-                  disabled={decisionSubmitting}
-                  className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
-                >
-                  Yes, list with brokers
-                </Button>
-                <Button variant="destructive" onClick={() => confirmReject(false)} disabled={decisionSubmitting}>
-                  No, do not list
-                </Button>
-                <Button variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setPendingAction("accept")}
-                className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
-              >
-                Customer Accepted
-              </Button>
-              <Button variant="destructive" onClick={() => setPendingAction("reject")}>
-                Customer Rejected
-              </Button>
-            </div>
-          )}
+          <div className="mt-6 border-t border-[var(--line)] pt-5">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Waiting for the customer's final decision. The Purchase Officer will record the outcome.
+            </p>
+          </div>
         </Card>
       )}
 
