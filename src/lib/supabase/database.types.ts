@@ -347,6 +347,7 @@ export type Database = {
           make: string | null
           model: string | null
           odometer_km: number | null
+          offer_deadline_at: string | null
           ownership_count: number | null
           registration_year: number | null
           status: Database["public"]["Enums"]["case_status"]
@@ -390,6 +391,7 @@ export type Database = {
           make?: string | null
           model?: string | null
           odometer_km?: number | null
+          offer_deadline_at?: string | null
           ownership_count?: number | null
           registration_year?: number | null
           status?: Database["public"]["Enums"]["case_status"]
@@ -433,6 +435,7 @@ export type Database = {
           make?: string | null
           model?: string | null
           odometer_km?: number | null
+          offer_deadline_at?: string | null
           ownership_count?: number | null
           registration_year?: number | null
           status?: Database["public"]["Enums"]["case_status"]
@@ -476,6 +479,54 @@ export type Database = {
           {
             foreignKeyName: "cases_assigned_po_id_fkey"
             columns: ["assigned_po_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_negotiations: {
+        Row: {
+          id: string
+          case_id: string
+          round: number
+          direction: "customer_counter" | "nippon_revised"
+          amount: number
+          note: string | null
+          recorded_by: string | null
+          recorded_at: string
+        }
+        Insert: {
+          id?: string
+          case_id: string
+          round: number
+          direction: "customer_counter" | "nippon_revised"
+          amount: number
+          note?: string | null
+          recorded_by?: string | null
+          recorded_at?: string
+        }
+        Update: {
+          id?: string
+          case_id?: string
+          round?: number
+          direction?: "customer_counter" | "nippon_revised"
+          amount?: number
+          note?: string | null
+          recorded_by?: string | null
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_negotiations_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_negotiations_recorded_by_fkey"
+            columns: ["recorded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -608,6 +659,23 @@ export type Database = {
         Args: { p_case_id: string; p_reason: string }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }
+      expire_customer_decision: {
+        Args: { p_case_id: string }
+        Returns: Database["public"]["Tables"]["cases"]["Row"]
+      }
+      record_negotiation_round: {
+        Args: {
+          p_case_id: string
+          p_direction: "customer_counter" | "nippon_revised"
+          p_amount: number
+          p_note?: string | null
+        }
+        Returns: Database["public"]["Tables"]["case_negotiations"]["Row"]
+      }
+      set_photo_broker_visibility: {
+        Args: { p_photo_id: string; p_visible: boolean }
+        Returns: Database["public"]["Tables"]["case_photos"]["Row"]
+      }
     }
     Enums: {
       app_role:
@@ -632,6 +700,7 @@ export type Database = {
         | "broker_offer_selected"
         | "no_broker_interest"
         | "broker_deal_closed"
+        | "no_customer_decision"
       customer_decision_type: "accepted" | "rejected"
       fuel_type: "petrol" | "diesel" | "cng" | "electric" | "hybrid"
       transmission_type: "manual" | "automatic"

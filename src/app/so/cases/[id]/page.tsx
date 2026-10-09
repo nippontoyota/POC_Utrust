@@ -14,7 +14,8 @@ export default async function SoCaseDetailPage({
   const [
     { data: caseRow },
     { data: photos },
-    { data: offer }
+    { data: offer },
+    { data: negotiations },
   ] = await Promise.all([
     supabase.from("cases").select("*").eq("id", id).single(),
     supabase
@@ -23,6 +24,11 @@ export default async function SoCaseDetailPage({
       .eq("case_id", id)
       .order("created_at"),
     supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
+    supabase
+      .from("case_negotiations")
+      .select("*")
+      .eq("case_id", id)
+      .order("round"),
   ]);
 
   if (!caseRow) notFound();
@@ -33,6 +39,7 @@ export default async function SoCaseDetailPage({
         initialCase={caseRow}
         initialPhotos={photos ?? []}
         offer={offer ?? null}
+        negotiations={negotiations ?? []}
       />
       <StaffBrokerPanel caseId={id} status={caseRow.status} readOnly />
     </>

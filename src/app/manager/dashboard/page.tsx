@@ -237,7 +237,7 @@ export default async function ManagerDashboardPage() {
 
   const { data: cases } = await supabase
     .from("cases")
-    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, case_offers(offer_price,submitted_at)")
+    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, offer_deadline_at, case_offers(offer_price,submitted_at)")
     .neq("status", "draft");
 
   const rows = cases ?? [];
@@ -273,6 +273,13 @@ export default async function ManagerDashboardPage() {
       ? evaluationTurnarounds.reduce((a, b) => a + b, 0) / evaluationTurnarounds.length
       : null;
 
+  const overdueDecisions = rows.filter(
+    (c) =>
+      c.status === "pending_customer_decision" &&
+      c.offer_deadline_at &&
+      Date.parse(c.offer_deadline_at as string) < Date.now()
+  ).length;
+
   const directRouteStatuses: CaseStatus[] = [
     "pending_evaluation",
     "pending_customer_decision",
@@ -281,6 +288,7 @@ export default async function ManagerDashboardPage() {
     "cancelled",
     "withdrawn",
     "rejected_not_listed",
+    "no_customer_decision",
   ];
   const brokerRouteStatuses: CaseStatus[] = [
     "listed_for_brokers",
@@ -331,7 +339,19 @@ export default async function ManagerDashboardPage() {
             <StatCard label="Expiring broker holds" value={brokerReport?.expiring ?? "Unavailable"} icon={AlertTriangle} href="/manager/marketplace" />
           </>
         )}
-        <StatCard label="Avg. customer decision time" value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"} icon={Timer} href="/manager/cases?status=pending_customer_decision" />
+        <StatCard
+          label="Avg. customer decision time"
+          value={customerTurnarounds.length ? `${(customerTurnarounds.reduce((a,b) => a+b,0) / customerTurnarounds.length).toFixed(1)} hrs` : "N/A"}
+          icon={Timer}
+          href="/manager/cases?status=pending_customer_decision"
+        />
+        <StatCard
+          label="Overdue decisions (>72h)"
+          value={overdueDecisions}
+          tone={overdueDecisions > 0 ? "danger" : "default"}
+          icon={AlertTriangle}
+          href="/manager/cases?status=pending_customer_decision"
+        />
       </div>
 
       <Card>

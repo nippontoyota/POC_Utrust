@@ -15,6 +15,7 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   broker_offer_selected: "Broker Offer Selected",
   no_broker_interest: "No Broker Interest",
   broker_deal_closed: "Broker Deal Closed",
+  no_customer_decision: "No Decision – Window Expired",
 };
 
 const TERMINAL_STATUSES: CaseStatus[] = [
@@ -24,6 +25,7 @@ const TERMINAL_STATUSES: CaseStatus[] = [
   "rejected_not_listed",
   "no_broker_interest",
   "broker_deal_closed",
+  "no_customer_decision",
 ];
 
 export function isTerminalStatus(status: CaseStatus): boolean {
