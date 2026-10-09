@@ -14,7 +14,8 @@ type Summary = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  purchase_officer: "Procurement Officers",
+  sales_officer: "Sales Officers",
+  purchase_officer: "Purchase Officers",
   manager: "Managers",
   sales_manager: "Sales Managers",
   cluster_manager: "Cluster Managers",

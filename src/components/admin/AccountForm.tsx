@@ -12,7 +12,8 @@ type Branch = { id: string; name: string };
 type Cluster = { id: string; name: string };
 
 const ROLE_OPTIONS: { value: Enums<"app_role">; label: string }[] = [
-  { value: "purchase_officer", label: "Procurement Officer" },
+  { value: "sales_officer", label: "Sales Officer" },
+  { value: "purchase_officer", label: "Purchase Officer" },
   { value: "sales_manager", label: "Sales Manager" },
   { value: "cluster_manager", label: "Cluster Manager" },
   { value: "po_manager", label: "PO Manager" },
@@ -20,7 +21,7 @@ const ROLE_OPTIONS: { value: Enums<"app_role">; label: string }[] = [
   { value: "admin", label: "Admin" },
 ];
 
-const BRANCH_ROLES = new Set(["purchase_officer", "sales_manager"]);
+const BRANCH_ROLES = new Set(["sales_officer", "purchase_officer", "sales_manager"]);
 
 export function AccountForm({
   mode,
@@ -45,7 +46,7 @@ export function AccountForm({
 
   const [employeeId, setEmployeeId] = useState(initial?.employeeId ?? "");
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
-  const [role, setRole] = useState<Enums<"app_role">>(initial?.role ?? "purchase_officer");
+  const [role, setRole] = useState<Enums<"app_role">>(initial?.role ?? "sales_officer");
   const [branchId, setBranchId] = useState(initial?.branchId ?? branches[0]?.id ?? "");
   const [clusterId, setClusterId] = useState(initial?.clusterId ?? clusters[0]?.id ?? "");
   const [password, setPassword] = useState("");

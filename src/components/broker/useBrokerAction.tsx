@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { BrokerAction } from "@/lib/broker";
 
-type ActionName = "broker_case_action" | "manage_broker";
+type ActionName = "broker_case_action" | "manage_broker" | "start_po_evaluation";
 
 export function useBrokerAction() {
   const router = useRouter();

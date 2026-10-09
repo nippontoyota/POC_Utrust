@@ -269,12 +269,57 @@ export type Database = {
           },
         ]
       }
+      case_offers: {
+        Row: {
+          case_id: string
+          id: string
+          inspection_completed: boolean
+          inspection_notes: string | null
+          offer_price: number
+          purchase_officer_id: string
+          submitted_at: string
+        }
+        Insert: {
+          case_id: string
+          id?: string
+          inspection_completed: boolean
+          inspection_notes?: string | null
+          offer_price: number
+          purchase_officer_id: string
+          submitted_at?: string
+        }
+        Update: {
+          case_id?: string
+          id?: string
+          inspection_completed?: boolean
+          inspection_notes?: string | null
+          offer_price?: number
+          purchase_officer_id?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_offers_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_offers_purchase_officer_id_fkey"
+            columns: ["purchase_officer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cases: {
         Row: {
           color: string | null
-          po_id: string
-          so_name: string | null
-          nippon_offer_price: number | null
+          sales_officer_id: string
+          assigned_po_id: string | null
+          evaluation_started_at: string | null
           branch_id: string
           broker_consent: boolean | null
           broker_consent_at: string | null
@@ -315,9 +360,9 @@ export type Database = {
         }
         Insert: {
           color?: string | null
-          po_id: string
-          so_name?: string | null
-          nippon_offer_price?: number | null
+          sales_officer_id: string
+          assigned_po_id?: string | null
+          evaluation_started_at?: string | null
           branch_id: string
           broker_consent?: boolean | null
           broker_consent_at?: string | null
@@ -358,9 +403,9 @@ export type Database = {
         }
         Update: {
           color?: string | null
-          po_id?: string
-          so_name?: string | null
-          nippon_offer_price?: number | null
+          sales_officer_id?: string
+          assigned_po_id?: string | null
+          evaluation_started_at?: string | null
           branch_id?: string
           broker_consent?: boolean | null
           broker_consent_at?: string | null
@@ -422,8 +467,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "cases_po_id_fkey"
-            columns: ["po_id"]
+            foreignKeyName: "cases_sales_officer_id_fkey"
+            columns: ["sales_officer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_assigned_po_id_fkey"
+            columns: ["assigned_po_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -439,6 +491,7 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          last_assigned_at: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
@@ -449,6 +502,7 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean
+          last_assigned_at?: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
         Update: {
@@ -459,6 +513,7 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          last_assigned_at?: string | null
           role?: Database["public"]["Enums"]["app_role"]
         }
         Relationships: [
@@ -530,8 +585,21 @@ export type Database = {
         }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }
-      submit_case: {
+      submit_case_for_evaluation: {
         Args: { p_case_id: string }
+        Returns: Database["public"]["Tables"]["cases"]["Row"]
+      }
+      start_po_evaluation: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      submit_po_evaluation: {
+        Args: {
+          p_case_id: string
+          p_inspection_completed: boolean
+          p_inspection_notes: string | null
+          p_offer_price: number
+        }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }
       withdraw_case: {
@@ -541,6 +609,7 @@ export type Database = {
     }
     Enums: {
       app_role:
+        | "sales_officer"
         | "purchase_officer"
         | "sales_manager"
         | "cluster_manager"
@@ -550,6 +619,7 @@ export type Database = {
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"
+        | "pending_evaluation"
         | "pending_customer_decision"
         | "purchase_completion_pending"
         | "closed"

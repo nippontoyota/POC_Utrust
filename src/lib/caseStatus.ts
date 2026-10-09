@@ -4,6 +4,7 @@ type CaseStatus = Enums<"case_status">;
 
 export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   draft: "Draft",
+  pending_evaluation: "Pending Evaluation",
   pending_customer_decision: "Awaiting Customer Decision",
   purchase_completion_pending: "Purchase Completion Pending",
   closed: "Closed",

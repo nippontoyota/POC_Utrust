@@ -1,7 +1,7 @@
 import { getCurrentProfile } from "@/lib/supabase/auth";
 import { AppShell } from "@/components/AppShell";
 
-export default async function PoLayout({
+export default async function SoLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -10,12 +10,12 @@ export default async function PoLayout({
 
   return (
     <AppShell
-      roleLabel="Purchase Officer"
+      roleLabel="Sales Officer"
       name={profile?.full_name ?? ""}
       subtitle={profile?.branches?.name}
       links={[
-        { href: "/po/dashboard", label: "Dashboard", icon: "dashboard" },
-        { href: "/po/cases", label: "Assigned Cases", icon: "cases" },
+        { href: "/so/dashboard", label: "Dashboard", icon: "dashboard" },
+        { href: "/so/cases", label: "My Cases", icon: "cases" },
       ]}
     >
       {children}

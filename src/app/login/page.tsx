@@ -14,6 +14,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { EMAIL_PATTERN, isValidEmail, normalizeEmail } from "@/lib/validation";
 
 const ROLE_HOME: Record<string, string> = {
+  sales_officer: "/so/dashboard",
   purchase_officer: "/po/dashboard",
   manager: "/manager/dashboard",
   sales_manager: "/manager/dashboard",

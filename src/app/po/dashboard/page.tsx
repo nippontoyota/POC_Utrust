@@ -1,56 +1,54 @@
 import Link from "next/link";
-import { Clock, LayoutList, Plus } from "lucide-react";
+import { ClipboardList, AlertTriangle, LayoutList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createDraftCase } from "@/lib/actions/cases";
-import { Button } from "@/components/ui/Button";
+import { isOverdue } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { AutoRefresh } from "@/components/broker/Refresh";
-import { BrokerLoadError } from "@/components/broker/BrokerLoadError";
 
 export default async function PoDashboardPage() {
   const supabase = await createClient();
 
-  const [{ count: awaitingDecisionCount }, { count: totalCount }, { data: brokerCounts, error: brokerError }] = await Promise.all([
-    supabase.from("cases").select("id", { count: "exact", head: true }).eq("status", "pending_customer_decision"),
+  const [{ count: totalCount }, { data: pendingCases }] = await Promise.all([
     supabase.from("cases").select("id", { count: "exact", head: true }).neq("status", "draft"),
-    supabase.rpc("po_broker_summary", {}),
+    supabase.from("cases").select("id, submitted_at, evaluation_started_at").eq("status", "pending_evaluation"),
   ]);
+
+  const pendingCount = pendingCases?.filter(c => !c.evaluation_started_at).length ?? 0;
+  const inProgressCount = pendingCases?.filter(c => c.evaluation_started_at).length ?? 0;
+  const overdueCount = pendingCases?.filter((c) => isOverdue(c.submitted_at, 2)).length ?? 0;
 
   return (
     <div className="space-y-6">
-      <AutoRefresh />
       <PageHeader
-        eyebrow="Procurement desk"
+        eyebrow="Purchase desk"
         title="Dashboard"
-        description="Create cases, make Nippon's offer, and move rejected vehicles into the broker marketplace."
-        actions={<form action={createDraftCase}>
-          <Button type="submit">
-            <Plus className="h-4 w-4" /> New Case
-          </Button>
-        </form>}
+        description="Start evaluations, keep overdue work visible, and return offer prices to the sales team."
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
-        <StatCard label="Total cases" value={totalCount ?? 0} icon={LayoutList} href="/po/cases" />
         <StatCard
-          label="Awaiting your action on customer decision"
-          value={awaitingDecisionCount ?? 0}
-          tone={awaitingDecisionCount ? "accent" : "default"}
-          icon={Clock}
-          href="/po/cases?status=pending_customer_decision"
+          label="Awaiting your evaluation"
+          value={pendingCount}
+          tone={pendingCount > 0 ? "accent" : "default"}
+          icon={ClipboardList}
+          href="/po/cases?evaluation=awaiting"
         />
-        <StatCard label="Open broker cases" value={brokerCounts?.listed ?? "Unavailable"} icon={LayoutList} href="/po/cases?broker=open" />
-        <StatCard label="Active broker reservations" value={brokerCounts?.reserved ?? "Unavailable"} icon={Clock} href="/po/cases?broker=reserved" />
-        <StatCard label="Broker holds expiring within 2 hours" value={brokerCounts?.expiring ?? "Unavailable"} icon={Clock} href="/po/cases?broker=expiring" />
+        <StatCard
+          label="Overdue (>2 business days)"
+          value={overdueCount}
+          tone={overdueCount > 0 ? "danger" : "default"}
+          icon={AlertTriangle}
+          href="/po/cases?overdue=1"
+        />
+        <StatCard label="Total assigned cases" value={totalCount ?? 0} icon={LayoutList} href="/po/cases" />
+        <StatCard label="Evaluations in progress" value={inProgressCount} icon={ClipboardList} href="/po/cases?evaluation=in_progress" />
       </div>
-      {brokerError && <BrokerLoadError error={brokerError} />}
 
       <Link
         href="/po/cases"
         className="inline-block text-sm font-black text-[var(--brand)] hover:underline"
       >
-        View all cases &rarr;
+        View all assigned cases &rarr;
       </Link>
     </div>
   );

@@ -1,403 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Camera, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ActionFeedback, useBrokerAction } from "@/components/broker/useBrokerAction";
 import { formatINR } from "@/lib/formatCurrency";
+import { PhotoGallery } from "@/components/PhotoGallery";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { FormField, inputClass } from "@/components/ui/FormField";
+import { DetailRow } from "@/components/ui/DetailRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import {
-  MOBILE_PATTERN,
-  VEHICLE_REG_MAX_LENGTH,
-  VEHICLE_REG_MIN_LENGTH,
-  isValidMobile,
-  isValidVehicleRegNumber,
-  normalizeMobile,
-  normalizeVehicleRegNumber,
-} from "@/lib/validation";
-import { VEHICLE_MAKES } from "@/lib/vehicleModels";
-import { getVehicleColors } from "@/lib/vehicleColors";
-import type { Enums, Tables } from "@/lib/supabase/database.types";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { inputClass } from "@/components/ui/FormField";
+import type { Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
-type PhotoRow = Pick<
-  Tables<"case_photos">,
-  | "id"
-  | "category"
-  | "storage_path"
-  | "file_size_bytes"
-  | "mime_type"
-  | "created_at"
-  | "broker_visible"
-  | "is_plate_visible"
->;
-
-const REQUIRED_ANGLES: { key: string; label: string }[] = [
-  { key: "front", label: "Front" },
-  { key: "rear", label: "Rear" },
-  { key: "left", label: "Left side" },
-  { key: "right", label: "Right side" },
-  { key: "interior_odometer", label: "Interior / dashboard (odometer visible)" },
-];
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const MAX_TOTAL_PHOTOS = 10;
-const CURRENT_YEAR = new Date().getFullYear();
-const MIN_REGISTRATION_YEAR = 1980;
-const REGISTRATION_YEARS = Array.from(
-  { length: CURRENT_YEAR - MIN_REGISTRATION_YEAR + 1 },
-  (_, i) => CURRENT_YEAR - i
-);
+type PhotoRow = Pick<Tables<"case_photos">, "id" | "category" | "file_size_bytes">;
+type OfferRow = Tables<"case_offers">;
 
 export function PoCaseWorkspace({
-  initialCase,
-  initialPhotos,
+  caseRow,
+  photos,
+  offer,
 }: {
-  initialCase: CaseRow;
-  initialPhotos: PhotoRow[];
+  caseRow: CaseRow;
+  photos: PhotoRow[];
+  offer: OfferRow | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
-  const isEditable = initialCase.status === "draft" || initialCase.status === "pending_customer_decision";
-  const isDraft = initialCase.status === "draft";
-  const canWithdraw = isEditable;
 
-  const [fields, setFields] = useState({
-    so_name: initialCase.so_name ?? "",
-    customer_name: initialCase.customer_name ?? "",
-    customer_mobile: initialCase.customer_mobile ?? "",
-    vehicle_reg_number: initialCase.vehicle_reg_number ?? "",
-    make: initialCase.make ?? "",
-    model: initialCase.model ?? "",
-    variant: initialCase.variant ?? "",
-    color: initialCase.color ?? "",
-    registration_year: initialCase.registration_year?.toString() ?? CURRENT_YEAR.toString(),
-    fuel_type: (initialCase.fuel_type ?? "") as Enums<"fuel_type"> | "",
-    transmission: (initialCase.transmission ?? "") as Enums<"transmission_type"> | "",
-    odometer_km: initialCase.odometer_km?.toString() ?? "",
-    ownership_count: initialCase.ownership_count?.toString() ?? "",
-    has_loan: initialCase.has_loan === null ? "" : initialCase.has_loan ? "yes" : "no",
-    lender_note: initialCase.lender_note ?? "",
-    customer_expected_price: initialCase.customer_expected_price?.toString() ?? "",
-    nippon_offer_price: initialCase.nippon_offer_price?.toString() ?? "",
-  });
-
-  const [photos, setPhotos] = useState<PhotoRow[]>(initialPhotos);
-  const [uploadingCategory, setUploadingCategory] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [inspectionCompleted, setInspectionCompleted] = useState(false);
+  const [inspectionNotes, setInspectionNotes] = useState("");
+  const [offerPrice, setOfferPrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState(false);
-  const [otherMake, setOtherMake] = useState(false);
-  const [otherModel, setOtherModel] = useState(false);
-  const [otherColor, setOtherColor] = useState(false);
-  const [draftDecision, setDraftDecision] = useState<"" | "accepted" | "rejected">("");
-  const [draftBrokerConsent, setDraftBrokerConsent] = useState<"" | "yes" | "no">("");
-  const models = VEHICLE_MAKES.find(({ make }) => make === fields.make)?.models ?? [];
-  const colors = getVehicleColors(fields.make, fields.model);
-  const hasVehicle = !!fields.make.trim() && !!fields.model.trim();
 
-  function update<K extends keyof typeof fields>(key: K, value: (typeof fields)[K]) {
-    setFields((f) => ({ ...f, [key]: value }));
-  }
-
-  function validateFields(requireComplete: boolean) {
-    const required: [keyof typeof fields, string][] = [
-      ["so_name", "The SO handling this case is required."],
-      ["customer_name", "Customer name is required."],
-      ["customer_mobile", "Customer mobile number is required."],
-      ["vehicle_reg_number", "Vehicle registration number is required."],
-      ["make", "Make is required."],
-      ["model", "Model is required."],
-      ["registration_year", "Registration year is required."],
-      ["fuel_type", "Fuel type is required."],
-      ["transmission", "Transmission is required."],
-      ["odometer_km", "Odometer reading is required."],
-      ["has_loan", "Loan / hypothecation status is required."],
-      ["customer_expected_price", "Customer expected price is required."],
-      ["nippon_offer_price", "Nippon's offer price is required."],
-    ];
-
-    if (requireComplete) {
-      const missing = required.find(([key]) => !fields[key].toString().trim());
-      if (missing) return missing[1];
-    }
-
-    if (fields.customer_mobile && !isValidMobile(fields.customer_mobile)) {
-      return "Enter a valid 10 digit customer mobile number.";
-    }
-
-    if (fields.vehicle_reg_number && !isValidVehicleRegNumber(fields.vehicle_reg_number)) {
-      return `Vehicle registration number must be ${VEHICLE_REG_MIN_LENGTH}-${VEHICLE_REG_MAX_LENGTH} characters.`;
-    }
-
-    const year = Number(fields.registration_year);
-    if (fields.registration_year && (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR)) {
-      return `Registration year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
-    }
-
-    const odometer = Number(fields.odometer_km);
-    if (fields.odometer_km && (!Number.isInteger(odometer) || odometer < 0 || odometer > 999999)) {
-      return "Odometer reading must be between 0 and 999999 km.";
-    }
-
-    const owners = Number(fields.ownership_count);
-    if (fields.ownership_count && (!Number.isInteger(owners) || owners < 1 || owners > 10)) {
-      return "Ownership count must be between 1 and 10.";
-    }
-
-    const expectedPrice = Number(fields.customer_expected_price);
-    if (fields.customer_expected_price && (!Number.isFinite(expectedPrice) || expectedPrice < 1 || expectedPrice > 999999999)) {
-      return "Customer expected price must be between INR 1 and INR 99,99,99,999.";
-    }
-
-    const offerPrice = Number(fields.nippon_offer_price);
-    if (fields.nippon_offer_price && (!Number.isFinite(offerPrice) || offerPrice < 1 || offerPrice > 999999999)) {
-      return "Nippon's offer price must be between INR 1 and INR 99,99,99,999.";
-    }
-
-    return null;
-  }
-
-  function buildUpdatePayload() {
-    return {
-      so_name: fields.so_name.trim() || null,
-      customer_name: fields.customer_name || null,
-      customer_mobile: fields.customer_mobile ? normalizeMobile(fields.customer_mobile) : null,
-      vehicle_reg_number: fields.vehicle_reg_number ? normalizeVehicleRegNumber(fields.vehicle_reg_number) : null,
-      make: fields.make || null,
-      model: fields.model || null,
-      variant: fields.variant.trim() || null,
-      color: fields.color.trim() || null,
-      registration_year: fields.registration_year ? parseInt(fields.registration_year, 10) : null,
-      fuel_type: fields.fuel_type || null,
-      transmission: fields.transmission || null,
-      odometer_km: fields.odometer_km ? parseInt(fields.odometer_km, 10) : null,
-      ownership_count: fields.ownership_count ? parseInt(fields.ownership_count, 10) : null,
-      has_loan: fields.has_loan === "" ? null : fields.has_loan === "yes",
-      lender_note: fields.lender_note || null,
-      customer_expected_price: fields.customer_expected_price ? parseFloat(fields.customer_expected_price) : null,
-      nippon_offer_price: fields.nippon_offer_price ? parseFloat(fields.nippon_offer_price) : null,
-    };
-  }
-
-  async function saveDraft({ requireComplete = false } = {}): Promise<boolean> {
-    setSaving(true);
-    setError(null);
-    setSavedMessage(false);
-
-    const validationError = validateFields(requireComplete);
-    if (validationError) {
-      setSaving(false);
-      setError(validationError);
-      return false;
-    }
-
-    const payload = buildUpdatePayload();
-
-    const { error: updateError } = await supabase.from("cases").update(payload).eq("id", initialCase.id);
-
-    setSaving(false);
-
-    if (updateError) {
-      setError(
-        updateError.message.includes("uniq_open_vehicle_reg")
-          ? "A case for this vehicle registration number already exists and is still open."
-          : updateError.message
-      );
-      return false;
-    }
-
-    if (payload.vehicle_reg_number !== null) {
-      setFields((f) => ({ ...f, vehicle_reg_number: payload.vehicle_reg_number! }));
-    }
-
-    setSavedMessage(true);
-    return true;
-  }
-
-  async function handleFileSelect(file: File, category: string) {
-    setError(null);
-
-    if (!file.type.startsWith("image/")) {
-      setError("Only image files are allowed.");
-      return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      setError("Each photo must be 5MB or smaller.");
-      return;
-    }
-    if (category !== "rc_book" && photos.filter(p => p.category !== "rc_book").length >= MAX_TOTAL_PHOTOS) {
-      setError(`You can upload at most ${MAX_TOTAL_PHOTOS} vehicle photos, plus the RC book photo.`);
-      return;
-    }
-
-    setUploadingCategory(category);
-
-    const isRequiredSlot = category === "rc_book" || REQUIRED_ANGLES.some((a) => a.key === category);
-    if (isRequiredSlot) {
-      const existing = photos.find((p) => p.category === category);
-      if (existing) {
-        await supabase.storage.from("vehicle-photos").remove([existing.storage_path]);
-        await supabase.from("case_photos").delete().eq("id", existing.id);
-        setPhotos((prev) => prev.filter((p) => p.id !== existing.id));
-      }
-    }
-
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const photoId = crypto.randomUUID();
-    const path = `${initialCase.id}/${photoId}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage.from("vehicle-photos").upload(path, file);
-    if (uploadError) {
-      setError(uploadError.message);
-      setUploadingCategory(null);
-      return;
-    }
-
-    const { data: photoRow, error: insertError } = await supabase
-      .from("case_photos")
-      .insert({
-        case_id: initialCase.id,
-        storage_path: path,
-        category,
-        is_plate_visible: category === "front" || category === "rear",
-        file_size_bytes: file.size,
-        mime_type: file.type,
-        uploaded_by: initialCase.po_id,
-      })
-      .select("id, category, storage_path, file_size_bytes, mime_type, created_at, broker_visible, is_plate_visible")
-      .single();
-
-    setUploadingCategory(null);
-
-    if (insertError || !photoRow) {
-      await supabase.storage.from("vehicle-photos").remove([path]);
-      setError(insertError?.message ?? "Failed to record photo");
-      return;
-    }
-
-    setPhotos((prev) => [...prev, photoRow]);
-  }
-
-  async function removePhoto(photo: PhotoRow) {
-    await supabase.storage.from("vehicle-photos").remove([photo.storage_path]);
-    await supabase.from("case_photos").delete().eq("id", photo.id);
-    setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
-  }
+  const startAction = useBrokerAction();
+  const canEvaluate = caseRow.status === "pending_evaluation" && !offer;
 
   async function handleSubmit() {
-    const saved = await saveDraft({ requireComplete: true });
-    if (!saved) return;
+    setError(null);
 
-    if (!draftDecision) {
-      setError("Record whether the customer accepted Nippon's offer before submitting.");
+    const price = parseFloat(offerPrice);
+    if (!inspectionCompleted) {
+      setError("You must confirm the physical inspection is complete.");
       return;
     }
-    if (draftDecision === "rejected" && !draftBrokerConsent) {
-      setError("Record whether to list this vehicle to brokers before submitting.");
+    if (!Number.isFinite(price) || price < 1 || price > 999999999) {
+      setError("Enter an offer price between INR 1 and INR 99,99,99,999.");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
-
-    const { error: submitError } = await supabase.rpc("submit_case", {
-      p_case_id: initialCase.id,
+    const { error: rpcError } = await supabase.rpc("submit_po_evaluation", {
+      p_case_id: caseRow.id,
+      p_inspection_completed: inspectionCompleted,
+      p_inspection_notes: inspectionNotes || null,
+      p_offer_price: price,
     });
-
-    if (submitError) {
-      setSubmitting(false);
-      setError(submitError.message);
-      return;
-    }
-
-    const { error: decisionError } = await supabase.rpc("record_customer_decision", {
-      p_case_id: initialCase.id,
-      p_decision: draftDecision,
-      ...(draftDecision === "rejected" ? { p_broker_consent: draftBrokerConsent === "yes" } : {}),
-    });
-
     setSubmitting(false);
 
-    if (decisionError) {
-      setError(
-        `The case was submitted, but recording the customer's decision failed: ${decisionError.message}. Use the Customer Decision section below to record it.`
-      );
-      router.refresh();
-      return;
-    }
-
-    router.refresh();
-  }
-
-  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    null | "accept" | "reject" | "close" | "cancel" | "withdraw"
-  >(null);
-  const [reasonText, setReasonText] = useState("");
-  const [counterOfferPrice, setCounterOfferPrice] = useState(
-    initialCase.customer_counter_offer_price?.toString() ?? ""
-  );
-  const [counterOfferNote, setCounterOfferNote] = useState(
-    initialCase.customer_counter_offer_note ?? ""
-  );
-
-  async function runDecision(
-    fn: () => PromiseLike<{ error: { message: string } | null }>,
-    onSuccess?: () => void
-  ) {
-    setDecisionSubmitting(true);
-    const { error: rpcError } = await fn();
-    setDecisionSubmitting(false);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
-    }
-    setPendingAction(null);
-    setReasonText("");
-    if (onSuccess) onSuccess();
-    else router.refresh();
-  }
-
-  function confirmAccept() {
-    runDecision(() =>
-      supabase.rpc("record_customer_decision", { p_case_id: initialCase.id, p_decision: "accepted" })
-    );
-  }
-
-  function confirmReject(consent: boolean) {
-    runDecision(() =>
-      supabase.rpc("record_customer_decision", {
-        p_case_id: initialCase.id,
-        p_decision: "rejected",
-        p_broker_consent: consent,
-      })
-    );
-  }
-
-  async function saveCounterOffer() {
-    const price = Number(counterOfferPrice);
-    if (!Number.isFinite(price) || price <= 0 || price > 999999999) {
-      setError("Customer counter offer must be between INR 1 and INR 99,99,99,999.");
-      return;
-    }
-
-    setDecisionSubmitting(true);
-    setError(null);
-
-    const { error: rpcError } = await supabase.rpc("record_customer_counter_offer", {
-      p_case_id: initialCase.id,
-      p_counter_offer_price: price,
-      p_note: counterOfferNote.trim() || null,
-    });
-
-    setDecisionSubmitting(false);
-
     if (rpcError) {
       setError(rpcError.message);
       return;
@@ -405,38 +70,6 @@ export function PoCaseWorkspace({
 
     router.refresh();
   }
-
-  function confirmClose() {
-    runDecision(() => supabase.rpc("close_case", { p_case_id: initialCase.id }));
-  }
-
-  function confirmCancel() {
-    if (!reasonText.trim()) {
-      setError("A reason is required.");
-      return;
-    }
-    runDecision(() => supabase.rpc("cancel_case", { p_case_id: initialCase.id, p_reason: reasonText }));
-  }
-
-  function confirmWithdraw() {
-    if (!reasonText.trim()) {
-      setError("A reason is required.");
-      return;
-    }
-    runDecision(
-      () => supabase.rpc("withdraw_case", { p_case_id: initialCase.id, p_reason: reasonText }),
-      () => router.push("/po/cases")
-    );
-  }
-
-  const additionalPhotos = photos.filter((p) => p.category === "other");
-  const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
-  const rcBookPhoto = photos.find(p => p.category === "rc_book");
-  const requiredFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
-  const draftDecisionReady =
-    draftDecision === "accepted" || (draftDecision === "rejected" && draftBrokerConsent !== "");
-  const canSubmit =
-    requiredFilled && totalPhotos >= 6 && !!rcBookPhoto && draftDecisionReady && !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -446,13 +79,11 @@ export function PoCaseWorkspace({
             href="/po/cases"
             className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> My Cases
+            <ArrowLeft className="h-3.5 w-3.5" /> Assigned Cases
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {initialCase.case_ref ?? "New Case (Draft)"}
-          </h1>
+          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{caseRow.case_ref}</h1>
         </div>
-        <StatusBadge status={initialCase.status} />
+        <StatusBadge status={caseRow.status} />
       </div>
 
       {error && (
@@ -462,757 +93,104 @@ export function PoCaseWorkspace({
       )}
 
       <Card>
-        <CardTitle>Case Handling</CardTitle>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="SO handling this case" required>
-            <input
-              type="text"
-              disabled={!isEditable}
-              value={fields.so_name}
-              onChange={(e) => update("so_name", e.target.value)}
-              placeholder="Name of the Sales Officer in the field"
-              className={inputClass}
-            />
-          </FormField>
-        </div>
-      </Card>
-
-      <Card>
         <CardTitle>Customer &amp; Vehicle Details</CardTitle>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="Customer name" required>
-            <input
-              type="text"
-              disabled={!isEditable}
-              value={fields.customer_name}
-              onChange={(e) => update("customer_name", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Customer mobile number" required>
-            <input
-              type="tel"
-              disabled={!isEditable}
-              inputMode="numeric"
-              pattern={MOBILE_PATTERN}
-              title="Enter a 10 digit mobile number."
-              value={fields.customer_mobile}
-              onChange={(e) => update("customer_mobile", normalizeMobile(e.target.value))}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Vehicle registration number" required>
-            <input
-              type="text"
-              disabled={!isEditable}
-              maxLength={VEHICLE_REG_MAX_LENGTH + 3}
-              value={fields.vehicle_reg_number}
-              onChange={(e) => update("vehicle_reg_number", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Make" required>
-            <select
-              disabled={!isEditable}
-              value={otherMake ? "__other__" : fields.make}
-              onChange={(e) => {
-                const isOther = e.target.value === "__other__";
-                setOtherMake(isOther);
-                setOtherModel(false);
-                setOtherColor(false);
-                setFields((f) => ({ ...f, make: isOther ? "" : e.target.value, model: "", variant: "", color: "" }));
-              }}
-              className={inputClass}
-            >
-              <option value="">Select make...</option>
-              {fields.make && !otherMake && !VEHICLE_MAKES.some(({ make }) => make === fields.make) && (
-                <option value={fields.make}>{fields.make}</option>
-              )}
-              {VEHICLE_MAKES.map(({ make }) => <option key={make} value={make}>{make}</option>)}
-              <option value="__other__">Other make</option>
-            </select>
-          </FormField>
-          {otherMake && (
-            <FormField label="Other make" required>
-              <input
-                type="text"
-                disabled={!isEditable}
-                value={fields.make}
-                onChange={(e) => {
-                  setOtherColor(false);
-                  setFields((f) => ({ ...f, make: e.target.value, model: "", variant: "", color: "" }));
-                }}
-                placeholder="Enter make"
-                className={inputClass}
-              />
-            </FormField>
-          )}
-          <FormField label="Model" required>
-            <select
-              disabled={!isEditable || !fields.make.trim()}
-              value={otherModel ? "__other__" : fields.model}
-              onChange={(e) => {
-                const isOther = e.target.value === "__other__";
-                setOtherModel(isOther);
-                setOtherColor(false);
-                setFields((f) => ({ ...f, model: isOther ? "" : e.target.value, variant: "", color: "" }));
-              }}
-              className={inputClass}
-            >
-              <option value="">{fields.make.trim() ? "Select model..." : "Select make first"}</option>
-              {fields.model && !otherModel && !models.includes(fields.model) && (
-                <option value={fields.model}>{fields.model}</option>
-              )}
-              {models.map((model) => <option key={model} value={model}>{model}</option>)}
-              <option value="__other__">Other model</option>
-            </select>
-          </FormField>
-          {otherModel && (
-            <FormField label="Other model" required>
-              <input
-                type="text"
-                disabled={!isEditable || !fields.make.trim()}
-                value={fields.model}
-                onChange={(e) => {
-                  setOtherColor(false);
-                  setFields((f) => ({ ...f, model: e.target.value, color: "" }));
-                }}
-                placeholder="Enter model"
-                className={inputClass}
-              />
-            </FormField>
-          )}
-          <FormField label="Variant">
-            <input
-              type="text"
-              disabled={!isEditable}
-              value={fields.variant}
-              onChange={(e) => update("variant", e.target.value)}
-              placeholder="Optional"
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Colour">
-            <select
-              disabled={!isEditable || !hasVehicle}
-              value={otherColor ? "__other__" : fields.color}
-              onChange={(e) => {
-                const isOther = e.target.value === "__other__";
-                setOtherColor(isOther);
-                update("color", isOther ? "" : e.target.value);
-              }}
-              className={inputClass}
-            >
-              <option value="">{!hasVehicle ? "Select make and model first" : colors.length ? "Select colour..." : "Choose Other to enter colour"}</option>
-              {fields.color && !otherColor && !colors.includes(fields.color) && (
-                <option value={fields.color}>{fields.color}</option>
-              )}
-              {colors.map((color) => <option key={color} value={color}>{color}</option>)}
-              <option value="__other__">Other</option>
-            </select>
-          </FormField>
-          {otherColor && (
-            <FormField label="Other colour">
-              <input
-                type="text"
-                disabled={!isEditable || !hasVehicle}
-                value={fields.color}
-                onChange={(e) => update("color", e.target.value)}
-                placeholder="Enter manufacturer paint name"
-                maxLength={100}
-                className={inputClass}
-              />
-            </FormField>
-          )}
-          <FormField label="Registration year" required>
-            <select
-              disabled={!isEditable}
-              value={fields.registration_year}
-              onChange={(e) => update("registration_year", e.target.value)}
-              className={inputClass}
-            >
-              {REGISTRATION_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Fuel type" required>
-            <select
-              disabled={!isEditable}
-              value={fields.fuel_type}
-              onChange={(e) => update("fuel_type", e.target.value as Enums<"fuel_type">)}
-              className={inputClass}
-            >
-              <option value="">Select...</option>
-              <option value="petrol">Petrol</option>
-              <option value="diesel">Diesel</option>
-              <option value="cng">CNG</option>
-              <option value="electric">Electric</option>
-              <option value="hybrid">Hybrid</option>
-            </select>
-          </FormField>
-          <FormField label="Transmission" required>
-            <select
-              disabled={!isEditable}
-              value={fields.transmission}
-              onChange={(e) => update("transmission", e.target.value as Enums<"transmission_type">)}
-              className={inputClass}
-            >
-              <option value="">Select...</option>
-              <option value="manual">Manual</option>
-              <option value="automatic">Automatic</option>
-            </select>
-          </FormField>
-          <FormField label="Odometer reading (km)" required>
-            <input
-              type="number"
-              disabled={!isEditable}
-              min={0}
-              max={999999}
-              step={1}
-              value={fields.odometer_km}
-              onChange={(e) => update("odometer_km", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Ownership count">
-            <input
-              type="number"
-              disabled={!isEditable}
-              min={1}
-              max={10}
-              step={1}
-              value={fields.ownership_count}
-              onChange={(e) => update("ownership_count", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Loan / hypothecation status" required>
-            <select
-              disabled={!isEditable}
-              value={fields.has_loan}
-              onChange={(e) => update("has_loan", e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Select...</option>
-              <option value="no">No active loan</option>
-              <option value="yes">Active loan</option>
-            </select>
-          </FormField>
-          {fields.has_loan === "yes" && (
-            <FormField label="Lender note">
-              <input
-                type="text"
-                disabled={!isEditable}
-                value={fields.lender_note}
-                onChange={(e) => update("lender_note", e.target.value)}
-                className={inputClass}
-                placeholder="Lender name / details"
-              />
-            </FormField>
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Pricing</CardTitle>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="Customer expected price (INR)" required>
-            <input
-              type="number"
-              disabled={!isEditable}
-              min={1}
-              max={999999999}
-              step={1}
-              value={fields.customer_expected_price}
-              onChange={(e) => update("customer_expected_price", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-          <FormField label="Nippon's offer price (INR)" required>
-            <input
-              type="number"
-              disabled={!isEditable}
-              min={1}
-              max={999999999}
-              step={1}
-              value={fields.nippon_offer_price}
-              onChange={(e) => update("nippon_offer_price", e.target.value)}
-              className={inputClass}
-            />
-          </FormField>
-        </div>
-      </Card>
-
-      <Card>
-        <h2 className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Vehicle Photos</h2>
-        <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          5 required angles, plus at least 1 more (minimum 6, maximum {MAX_TOTAL_PHOTOS} total). Max 5MB per photo.
-        </p>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {REQUIRED_ANGLES.map((angle) => {
-            const photo = photos.find((p) => p.category === angle.key);
-            return (
-              <PhotoSlot
-                key={angle.key}
-                label={angle.label}
-                photo={photo}
-                disabled={!isEditable}
-                uploading={uploadingCategory === angle.key}
-                onSelect={(file) => handleFileSelect(file, angle.key)}
-                onRemove={photo && isEditable ? () => removePhoto(photo) : undefined}
-              />
-            );
-          })}
-        </div>
-
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            Additional photos ({additionalPhotos.length}/{MAX_TOTAL_PHOTOS - REQUIRED_ANGLES.length})
-          </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {additionalPhotos.map((photo) => (
-              <PhotoSlot
-                key={photo.id}
-                label="Additional"
-                photo={photo}
-                disabled={!isEditable}
-                uploading={false}
-                onSelect={() => {}}
-                onRemove={isEditable ? () => removePhoto(photo) : undefined}
-              />
-            ))}
-            {isEditable && totalPhotos < MAX_TOTAL_PHOTOS && (
-              <PhotoSlot
-                label="Add photo"
-                photo={undefined}
-                disabled={false}
-                uploading={uploadingCategory === "other"}
-                onSelect={(file) => handleFileSelect(file, "other")}
-              />
-            )}
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>RC Book Photo <span className="text-red-500">*</span></CardTitle>
-        <div className="max-w-sm">
-          <PhotoSlot
-            label="Registration certificate"
-            photo={rcBookPhoto}
-            disabled={!isEditable || !!uploadingCategory || submitting}
-            uploading={uploadingCategory === "rc_book"}
-            onSelect={(file) => handleFileSelect(file, "rc_book")}
-            onRemove={rcBookPhoto && isEditable && !uploadingCategory && !submitting ? () => removePhoto(rcBookPhoto) : undefined}
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+          <DetailRow label="Customer name" value={caseRow.customer_name} />
+          <DetailRow label="Customer mobile number" value={caseRow.customer_mobile} />
+          <DetailRow label="Vehicle registration number" value={caseRow.vehicle_reg_number} />
+          <DetailRow label="Make" value={caseRow.make} />
+          <DetailRow label="Model" value={caseRow.model} />
+          <DetailRow label="Variant" value={caseRow.variant} />
+          <DetailRow label="Colour" value={caseRow.color} />
+          <DetailRow label="Registration year" value={caseRow.registration_year?.toString()} />
+          <DetailRow label="Fuel type" value={caseRow.fuel_type} />
+          <DetailRow label="Transmission" value={caseRow.transmission} />
+          <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
+          <DetailRow label="Ownership count" value={caseRow.ownership_count?.toString()} />
+          <DetailRow
+            label="Loan / hypothecation"
+            value={caseRow.has_loan ? `Yes${caseRow.lender_note ? ` (${caseRow.lender_note})` : ""}` : "No"}
           />
+          <DetailRow label="Customer expected price" value={formatINR(caseRow.customer_expected_price)} />
         </div>
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Required before submitting. Image only, up to 5MB. Private to authorized staff.</p>
       </Card>
 
-      {isDraft && (
+      <Card>
+        <CardTitle>Vehicle Photos</CardTitle>
+        <PhotoGallery photos={photos} />
+      </Card>
+
+      <ActionFeedback error={startAction.error} success={startAction.success} />
+      {canEvaluate && !caseRow.evaluation_started_at && <Button disabled={startAction.busy} onClick={() => startAction.run("start_po_evaluation", { p_case_id: caseRow.id })}>Start Evaluation</Button>}
+      {caseRow.evaluation_started_at && <p className="text-sm text-zinc-500">{offer ? "Evaluation started" : "Evaluation in progress since"} {new Date(caseRow.evaluation_started_at).toLocaleString("en-IN")}</p>}
+      {offer ? (
         <Card>
-          <CardTitle>Customer Decision</CardTitle>
-          <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Did the customer accept Nippon&apos;s offer? <span className="text-red-500">*</span>
-          </p>
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant={draftDecision === "accepted" ? "primary" : "secondary"}
-              className={draftDecision === "accepted" ? "bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600" : ""}
-              onClick={() => {
-                setDraftDecision("accepted");
-                setDraftBrokerConsent("");
-              }}
-            >
-              Yes
-            </Button>
-            <Button
-              type="button"
-              variant={draftDecision === "rejected" ? "destructive" : "secondary"}
-              onClick={() => setDraftDecision("rejected")}
-            >
-              No
-            </Button>
+          <CardTitle>Your Evaluation</CardTitle>
+          <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <DetailRow label="Physical inspection" value={offer.inspection_completed ? "Completed" : "Not completed"} />
+            <DetailRow label="Nippon's offer" value={formatINR(offer.offer_price)} />
+            <DetailRow label="Inspection notes" value={offer.inspection_notes ?? "—"} />
+            <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
+          </div>
+        </Card>
+      ) : canEvaluate && caseRow.evaluation_started_at ? (
+        <Card>
+          <CardTitle>Evaluation &amp; Offer</CardTitle>
+
+          <label className="flex items-start gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+            <input
+              type="checkbox"
+              checked={inspectionCompleted}
+              onChange={(e) => setInspectionCompleted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-blue-600"
+            />
+            <span>
+              I confirm the physical inspection of this vehicle is complete.
+              <span className="text-red-500 dark:text-red-400"> *</span>
+            </span>
+          </label>
+
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Inspection notes (optional)
+            </label>
+            <textarea
+              value={inspectionNotes}
+              onChange={(e) => setInspectionNotes(e.target.value)}
+              rows={3}
+              className={`mt-1 w-full ${inputClass}`}
+            />
           </div>
 
-          {draftDecision === "rejected" && (
-            <div className="mt-4">
-              <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                List this vehicle to brokers? <span className="text-red-500">*</span>
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant={draftBrokerConsent === "yes" ? "primary" : "secondary"}
-                  className={draftBrokerConsent === "yes" ? "bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500" : ""}
-                  onClick={() => setDraftBrokerConsent("yes")}
-                >
-                  Yes, to brokers
-                </Button>
-                <Button
-                  type="button"
-                  variant={draftBrokerConsent === "no" ? "destructive" : "secondary"}
-                  onClick={() => setDraftBrokerConsent("no")}
-                >
-                  No, do not list
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Nippon&apos;s offered price (INR) <span className="text-red-500 dark:text-red-400">*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={999999999}
+              step={1}
+              value={offerPrice}
+              onChange={(e) => setOfferPrice(e.target.value)}
+              className={inputClass}
+            />
+          </div>
 
-      {isDraft && (
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={() => void saveDraft()} disabled={saving}>
-            {saving ? "Saving..." : "Save Draft"}
-          </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit}
-            title={
-              !canSubmit
-                ? "Upload the RC book photo and at least 6 vehicle photos (including all required angles), and record the customer's decision"
-                : undefined
-            }
+            disabled={!inspectionCompleted || submitting}
+            title={!inspectionCompleted ? "Confirm physical inspection first" : undefined}
+            className="mt-5"
           >
-            {submitting ? "Submitting..." : "Submit Case"}
+            {submitting ? "Submitting..." : "Submit Evaluation & Offer"}
           </Button>
-          {savedMessage && <span className="text-sm text-green-600 dark:text-green-400">Saved.</span>}
-        </div>
-      )}
-
-      {initialCase.status === "pending_customer_decision" && (
-        <Card>
-          <CardTitle>Customer Decision</CardTitle>
-          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-            Nippon&apos;s offer: <span className="font-semibold tabular-nums">{formatINR(initialCase.nippon_offer_price)}</span>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            This is final once submitted — offers cannot be revised.
           </p>
-
-          {!isDraft && (
-            <div className="mb-5 flex items-center gap-3">
-              <Button variant="secondary" onClick={() => void saveDraft()} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-              {savedMessage && <span className="text-sm text-green-600 dark:text-green-400">Saved.</span>}
-            </div>
-          )}
-
-          <div className="mb-5 rounded-2xl border border-[var(--line)] bg-[var(--panel-soft)] p-4">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Customer Counter Offer
-                </h3>
-                {initialCase.customer_counter_offer_at && (
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Last recorded {new Date(initialCase.customer_counter_offer_at).toLocaleString("en-IN")}
-                  </p>
-                )}
-              </div>
-              {initialCase.customer_counter_offer_price && (
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black tabular-nums text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                  {formatINR(initialCase.customer_counter_offer_price)}
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,14rem)_1fr_auto] sm:items-end">
-              <FormField label="Counter amount (INR)">
-                <input
-                  type="number"
-                  min={1}
-                  max={999999999}
-                  step={1}
-                  value={counterOfferPrice}
-                  onChange={(e) => setCounterOfferPrice(e.target.value)}
-                  className={inputClass}
-                />
-              </FormField>
-              <FormField label="Note">
-                <input
-                  type="text"
-                  maxLength={1000}
-                  value={counterOfferNote}
-                  onChange={(e) => setCounterOfferNote(e.target.value)}
-                  placeholder="Optional"
-                  className={inputClass}
-                />
-              </FormField>
-              <Button
-                variant="secondary"
-                onClick={saveCounterOffer}
-                disabled={decisionSubmitting || !counterOfferPrice}
-              >
-                {decisionSubmitting ? "Saving..." : "Save Counter"}
-              </Button>
-            </div>
-          </div>
-
-          {pendingAction === "accept" ? (
-            <div className="rounded-md border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">
-              <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
-                Confirm the customer has accepted Nippon&apos;s offer? This closes the case by UTrust.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={confirmAccept}
-                  disabled={decisionSubmitting}
-                  className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
-                >
-                  {decisionSubmitting ? "Recording..." : "Yes, confirm"}
-                </Button>
-                <Button variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : pendingAction === "reject" ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40">
-              <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">
-                Does the customer consent to listing this vehicle with brokers?
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => confirmReject(true)}
-                  disabled={decisionSubmitting}
-                  className="bg-amber-600 hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
-                >
-                  Yes, to brokers
-                </Button>
-                <Button variant="destructive" onClick={() => confirmReject(false)} disabled={decisionSubmitting}>
-                  No, do not list
-                </Button>
-                <Button variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="mb-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Did the customer accept Nippon&apos;s offer?
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => setPendingAction("accept")}
-                  className="bg-green-700 hover:bg-green-800 dark:bg-green-700 dark:hover:bg-green-600"
-                >
-                  Yes
-                </Button>
-                <Button variant="destructive" onClick={() => setPendingAction("reject")}>
-                  No
-                </Button>
-              </div>
-            </div>
-          )}
         </Card>
-      )}
-
-      {initialCase.status === "purchase_completion_pending" && (
-        <Card>
-          <CardTitle>Purchase Completion</CardTitle>
-          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-            Customer accepted on {initialCase.customer_decision_at && new Date(initialCase.customer_decision_at).toLocaleString("en-IN")}.
-            Once payment and paperwork are complete, close the case.
-          </p>
-
-          {pendingAction === "close" ? (
-            <div className="rounded-md border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800">
-              <p className="mb-3 text-sm text-zinc-700 dark:text-zinc-300">Mark this case as closed? This is final.</p>
-              <div className="flex gap-2">
-                <Button onClick={confirmClose} disabled={decisionSubmitting}>
-                  {decisionSubmitting ? "Closing..." : "Yes, close it"}
-                </Button>
-                <Button variant="secondary" onClick={() => setPendingAction(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : pendingAction === "cancel" ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Reason for cancelling
-              </label>
-              <textarea
-                value={reasonText}
-                onChange={(e) => setReasonText(e.target.value)}
-                rows={2}
-                className={`mb-3 w-full ${inputClass}`}
-              />
-              <div className="flex gap-2">
-                <Button variant="destructive" onClick={confirmCancel} disabled={decisionSubmitting}>
-                  {decisionSubmitting ? "Cancelling..." : "Confirm cancellation"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setPendingAction(null);
-                    setReasonText("");
-                  }}
-                >
-                  Back
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <Button onClick={() => setPendingAction("close")}>Mark as Closed</Button>
-              <Button variant="destructive" onClick={() => setPendingAction("cancel")}>
-                Cancel Deal
-              </Button>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {initialCase.status === "rejected_not_listed" && (
-        <Card className="text-sm text-zinc-600 dark:text-zinc-400">
-          Customer rejected Nippon&apos;s offer and did not consent to broker listing. This case is closed out.
-        </Card>
-      )}
-
-      {initialCase.status === "closed" && (
-        <Card className="border-green-200 bg-green-50 text-sm text-zinc-700 dark:border-green-900 dark:bg-green-950/30 dark:text-zinc-300">
-          Closed by UTrust on {initialCase.closed_at && new Date(initialCase.closed_at).toLocaleString("en-IN")}.
-        </Card>
-      )}
-
-      {initialCase.status === "cancelled" && (
-        <Card className="border-red-200 bg-red-50 text-sm text-zinc-700 dark:border-red-900 dark:bg-red-950/30 dark:text-zinc-300">
-          Cancelled: {initialCase.cancelled_reason}
-        </Card>
-      )}
-
-      {initialCase.status === "withdrawn" && (
-        <Card className="text-sm text-zinc-700 dark:text-zinc-300">Withdrawn: {initialCase.withdrawn_reason}</Card>
-      )}
-
-      {canWithdraw && (
-        <div>
-          {pendingAction === "withdraw" ? (
-            <div className="max-w-sm rounded-md border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800">
-              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Reason for withdrawing
-              </label>
-              <textarea
-                value={reasonText}
-                onChange={(e) => setReasonText(e.target.value)}
-                rows={2}
-                className={`mb-3 w-full ${inputClass}`}
-              />
-              <div className="flex gap-2">
-                <Button variant="destructive" onClick={confirmWithdraw} disabled={decisionSubmitting}>
-                  {decisionSubmitting ? "Withdrawing..." : "Confirm withdrawal"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setPendingAction(null);
-                    setReasonText("");
-                  }}
-                >
-                  Back
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setPendingAction("withdraw")}
-              className="text-sm text-red-600 hover:underline dark:text-red-400"
-            >
-              Withdraw this case
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PhotoSlot({
-  label,
-  photo,
-  disabled,
-  uploading,
-  onSelect,
-  onRemove,
-}: {
-  label: string;
-  photo?: PhotoRow;
-  disabled: boolean;
-  uploading: boolean;
-  onSelect: (file: File) => void;
-  onRemove?: () => void;
-}) {
-  const [thumbnail, setThumbnail] = useState<{ id: string; url: string } | null>(null);
-  const thumbUrl = thumbnail?.id === photo?.id ? thumbnail?.url : null;
-
-  useEffect(() => {
-    if (!photo) return;
-    let cancelled = false;
-    fetch(`/api/photos/${photo.id}/signed-url`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data?.url) setThumbnail({ id: photo.id, url: data.url });
-      })
-      .catch(() => { if (!cancelled) setThumbnail(null); });
-    return () => {
-      cancelled = true;
-    };
-  }, [photo]);
-
-  return (
-    <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-      <p className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">{label}</p>
-      {photo ? (
-        <div className="space-y-1">
-          {thumbUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={thumbUrl} alt={label} className="h-20 w-full rounded object-cover" />
-          ) : (
-            <div className="h-20 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-          )}
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-            {(photo.file_size_bytes / 1024).toFixed(0)} KB
-          </p>
-          {onRemove && (
-            <button
-              onClick={onRemove}
-              className="inline-flex items-center gap-0.5 text-xs text-red-600 hover:underline dark:text-red-400"
-            >
-              <X className="h-3 w-3" /> Remove
-            </button>
-          )}
-        </div>
       ) : (
-        <label
-          className={`flex h-20 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded border border-dashed text-xs ${
-            disabled
-              ? "border-zinc-200 text-zinc-300 dark:border-zinc-800 dark:text-zinc-700"
-              : "border-zinc-300 text-zinc-500 hover:border-blue-400 hover:bg-blue-50/50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-blue-500 dark:hover:bg-blue-950/20"
-          }`}
-        >
-          <Camera className="h-4 w-4" strokeWidth={1.5} />
-          {uploading ? "Uploading..." : "Take photo"}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            aria-label={`Take photo: ${label}`}
-            disabled={disabled || uploading}
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onSelect(file);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <EmptyState message={canEvaluate ? "Awaiting evaluation." : "This case is not currently awaiting your evaluation."} />
       )}
     </div>
   );

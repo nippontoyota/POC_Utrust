@@ -115,7 +115,7 @@ export type MarketplaceFunctions = {
     };
     Returns: Json;
   };
-  po_broker_summary: {
+  so_broker_summary: {
     Args: Record<PropertyKey, never>;
     Returns: {
       listed: number;
