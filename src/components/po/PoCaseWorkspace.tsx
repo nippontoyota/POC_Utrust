@@ -147,6 +147,12 @@ export function PoCaseWorkspace({
 
   // ── Negotiation state ─────────────────────────────────────────────────────
   const [negotiations, setNegotiations] = useState<NegotiationRow[]>(initialNegotiations);
+  // The latest negotiation round (if any) is the current effective price --
+  // the original case_offers.offer_price is frozen the moment it's submitted
+  // and never reflects a "Nippon Revised" round after that.
+  const currentOfferPrice = negotiations.length
+    ? negotiations[negotiations.length - 1].amount
+    : offer?.offer_price ?? 0;
   const [negDirection, setNegDirection] = useState<"customer_counter" | "nippon_revised">("customer_counter");
   const [negAmount, setNegAmount] = useState("");
   const [negNote, setNegNote] = useState("");
@@ -433,10 +439,17 @@ export function PoCaseWorkspace({
 
           {/* Offer Price */}
           <Card>
-            <CardTitle>Nippon&apos;s Offer</CardTitle>
-            <p className="mb-6 text-3xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
-              {formatINR(offer.offer_price)}
-            </p>
+            <CardTitle>{negotiations.length ? "Current Offer" : "Nippon's Offer"}</CardTitle>
+            <div className="mb-6">
+              <p className="text-3xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
+                {formatINR(currentOfferPrice)}
+              </p>
+              {negotiations.length > 0 && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Original offer was {formatINR(offer.offer_price)}. This will be recorded as the accepted price if the customer accepts.
+                </p>
+              )}
+            </div>
 
             {/* ── Negotiation Timeline ── */}
             <NegotiationTimeline
@@ -585,6 +598,9 @@ export function PoCaseWorkspace({
       {/* ─── Terminal status cards ──────────────────────────────────────────── */}
       {caseRow.status === "purchase_completion_pending" && (
         <Card className="border-blue-200 bg-blue-50 text-sm text-zinc-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-zinc-300">
+          <p className="mb-2 text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
+            {formatINR(caseRow.final_price ?? offer?.offer_price ?? null)}
+          </p>
           Customer accepted on{" "}
           {caseRow.customer_decision_at && new Date(caseRow.customer_decision_at).toLocaleString("en-IN")}.
           The Sales Officer will complete payment and paperwork.
@@ -812,7 +828,7 @@ function TimelineEntry({
               {isCustomer ? "Customer" : "Nippon"} · Round {round}
             </span>
           )}
-          {isOrigin && <span className="text-xs opacity-60">Nippon's offer</span>}
+          {isOrigin && <span className="text-xs opacity-60">Nippon&apos;s offer</span>}
         </div>
         {note && <p className="mt-0.5 text-xs opacity-75">{note}</p>}
         {recordedAt && (

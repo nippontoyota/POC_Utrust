@@ -20,3 +20,8 @@ export function isOverdue(submittedAt: string | null, businessDaysThreshold: num
 export function daysSince(dateStr: string): number {
   return (Date.now() - Date.parse(dateStr)) / 86400000;
 }
+
+export function isPastDeadline(deadlineAt: string | null): boolean {
+  if (!deadlineAt) return false;
+  return Date.parse(deadlineAt) < Date.now();
+}

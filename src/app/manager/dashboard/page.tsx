@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/auth";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
 import { formatINR } from "@/lib/formatCurrency";
-import { isOverdue, daysSince } from "@/lib/businessDays";
+import { isOverdue, daysSince, isPastDeadline } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -237,7 +237,7 @@ export default async function ManagerDashboardPage() {
 
   const { data: cases } = await supabase
     .from("cases")
-    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, offer_deadline_at, case_offers(offer_price,submitted_at)")
+    .select("id, status, submitted_at, customer_decision_at, closed_at, customer_expected_price, offer_deadline_at, final_price, case_offers(offer_price,submitted_at)")
     .neq("status", "draft");
 
   const rows = cases ?? [];
@@ -252,7 +252,7 @@ export default async function ManagerDashboardPage() {
   const closedCases = rows.filter((c) => c.status === "closed");
   const closedValue = closedCases.reduce((sum, c) => {
     const offer = Array.isArray(c.case_offers) ? c.case_offers[0] : c.case_offers;
-    return sum + (offer?.offer_price ?? 0);
+    return sum + (c.final_price ?? offer?.offer_price ?? 0);
   }, 0);
 
   const isClusterManager = profile?.role === "cluster_manager";
@@ -274,10 +274,7 @@ export default async function ManagerDashboardPage() {
       : null;
 
   const overdueDecisions = rows.filter(
-    (c) =>
-      c.status === "pending_customer_decision" &&
-      c.offer_deadline_at &&
-      Date.parse(c.offer_deadline_at as string) < Date.now()
+    (c) => c.status === "pending_customer_decision" && isPastDeadline(c.offer_deadline_at)
   ).length;
 
   const directRouteStatuses: CaseStatus[] = [

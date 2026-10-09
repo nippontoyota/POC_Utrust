@@ -339,6 +339,7 @@ export type Database = {
           customer_expected_price: number | null
           customer_mobile: string | null
           customer_name: string | null
+          final_price: number | null
           fuel_type: Database["public"]["Enums"]["fuel_type"] | null
           has_loan: boolean | null
           id: string
@@ -383,6 +384,7 @@ export type Database = {
           customer_expected_price?: number | null
           customer_mobile?: string | null
           customer_name?: string | null
+          final_price?: number | null
           fuel_type?: Database["public"]["Enums"]["fuel_type"] | null
           has_loan?: boolean | null
           id?: string
@@ -427,6 +429,7 @@ export type Database = {
           customer_expected_price?: number | null
           customer_mobile?: string | null
           customer_name?: string | null
+          final_price?: number | null
           fuel_type?: Database["public"]["Enums"]["fuel_type"] | null
           has_loan?: boolean | null
           id?: string

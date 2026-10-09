@@ -72,6 +72,12 @@ export function CaseWorkspace({
   const canWithdraw = ["draft", "pending_evaluation", "pending_customer_decision"].includes(
     initialCase.status
   );
+  // The latest negotiation round (if any) is the current effective price --
+  // the original case_offers.offer_price is frozen once submitted and never
+  // reflects a later "Nippon Revised" round.
+  const currentOfferPrice = negotiations.length
+    ? negotiations[negotiations.length - 1].amount
+    : offer?.offer_price ?? 0;
 
   const [fields, setFields] = useState({
     customer_name: initialCase.customer_name ?? "",
@@ -355,7 +361,8 @@ export function CaseWorkspace({
   const additionalPhotos = photos.filter((p) => p.category === "other");
   const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
   const rcBookPhoto = photos.find(p => p.category === "rc_book");
-  const canSubmit = !submitting && !uploadingCategory;
+  const requiredAnglesFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
+  const canSubmit = requiredAnglesFilled && !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -636,7 +643,7 @@ export function CaseWorkspace({
       <Card>
         <h2 className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Vehicle Photos</h2>
         <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          Optional. 5 standard angles, plus up to {MAX_TOTAL_PHOTOS} total. Max 5MB per photo.
+          5 standard angles required, plus up to {MAX_TOTAL_PHOTOS} total. Max 5MB per photo.
         </p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -645,7 +652,7 @@ export function CaseWorkspace({
             return (
               <PhotoSlot
                 key={angle.key}
-                label={angle.label}
+                label={`${angle.label} *`}
                 photo={photo}
                 disabled={!isDraft}
                 uploading={uploadingCategory === angle.key}
@@ -702,10 +709,17 @@ export function CaseWorkspace({
 
       {initialCase.status === "pending_customer_decision" && offer && (
         <Card>
-          <CardTitle>Nippon&apos;s Offer</CardTitle>
-          <p className="mb-4 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-            {formatINR(offer.offer_price)}
-          </p>
+          <CardTitle>{negotiations.length ? "Current Offer" : "Nippon's Offer"}</CardTitle>
+          <div className="mb-4">
+            <p className="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+              {formatINR(currentOfferPrice)}
+            </p>
+            {negotiations.length > 0 && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Original offer was {formatINR(offer.offer_price)}.
+              </p>
+            )}
+          </div>
 
           {/* 72-hour deadline display (read-only for SO) */}
           {initialCase.offer_deadline_at && (
@@ -751,7 +765,7 @@ export function CaseWorkspace({
 
           <div className="mt-6 border-t border-[var(--line)] pt-5">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Waiting for the customer's final decision. The Purchase Officer will record the outcome.
+              Waiting for the customer&apos;s final decision. The Purchase Officer will record the outcome.
             </p>
           </div>
         </Card>
@@ -760,6 +774,9 @@ export function CaseWorkspace({
       {initialCase.status === "purchase_completion_pending" && (
         <Card>
           <CardTitle>Purchase Completion</CardTitle>
+          <p className="mb-1 text-2xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
+            {formatINR(initialCase.final_price ?? offer?.offer_price ?? null)}
+          </p>
           <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
             Customer accepted on {initialCase.customer_decision_at && new Date(initialCase.customer_decision_at).toLocaleString("en-IN")}.
             Once payment and paperwork are complete, close the case.
@@ -858,7 +875,13 @@ export function CaseWorkspace({
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title={uploadingCategory ? "Wait for the photo upload to finish" : undefined}
+            title={
+              !requiredAnglesFilled
+                ? "Upload all 5 required angle photos (front, rear, left, right, interior/odometer)"
+                : uploadingCategory
+                ? "Wait for the photo upload to finish"
+                : undefined
+            }
           >
             {submitting ? "Submitting..." : "Submit for Evaluation"}
           </Button>

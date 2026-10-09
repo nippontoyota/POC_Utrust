@@ -241,6 +241,9 @@ export default async function ManagerCaseDetailPage({
               label="Recorded at"
               value={caseRow.customer_decision_at ? new Date(caseRow.customer_decision_at).toLocaleString("en-IN") : undefined}
             />
+            {caseRow.customer_decision === "accepted" && (
+              <DetailRow label="Accepted price" value={formatINR(caseRow.final_price ?? offer?.offer_price ?? null)} />
+            )}
             {caseRow.customer_decision === "rejected" && (
               <DetailRow label="Broker listing consent" value={caseRow.broker_consent === null ? undefined : caseRow.broker_consent ? "Yes" : "No"} />
             )}
