@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/Button";
 import { DetailRow } from "@/components/ui/DetailRow";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { inputClass } from "@/components/ui/FormField";
+import { FormField, inputClass } from "@/components/ui/FormField";
 import { ActionFeedback, useBrokerAction } from "@/components/broker/useBrokerAction";
-import type { Tables } from "@/lib/supabase/database.types";
+import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
 type PhotoRow = Pick<
@@ -28,6 +28,14 @@ type NegotiationRow = Tables<"case_negotiations">;
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_PHOTOS = 10;
+
+const REQUIRED_ANGLES: { key: string; label: string }[] = [
+  { key: "front", label: "Front" },
+  { key: "rear", label: "Rear" },
+  { key: "left", label: "Left side" },
+  { key: "right", label: "Right side" },
+  { key: "interior_odometer", label: "Interior / dashboard (odometer visible)" },
+];
 
 // ─── Countdown helpers ────────────────────────────────────────────────────────
 
@@ -97,6 +105,15 @@ export function PoCaseWorkspace({
   const [offerPrice, setOfferPrice] = useState("");
   const [registrationYear, setRegistrationYear] = useState(caseRow.registration_year?.toString() ?? "");
   const [ownershipCount, setOwnershipCount] = useState(caseRow.ownership_count?.toString() ?? "");
+  const [make, setMake] = useState(caseRow.make ?? "");
+  const [model, setModel] = useState(caseRow.model ?? "");
+  const [variant, setVariant] = useState(caseRow.variant ?? "");
+  const [color, setColor] = useState(caseRow.color ?? "");
+  const [fuelType, setFuelType] = useState((caseRow.fuel_type ?? "") as Enums<"fuel_type"> | "");
+  const [transmission, setTransmission] = useState((caseRow.transmission ?? "") as Enums<"transmission_type"> | "");
+  const [odometerKm, setOdometerKm] = useState(caseRow.odometer_km?.toString() ?? "");
+  const [hasLoan, setHasLoan] = useState(caseRow.has_loan === null ? "" : caseRow.has_loan ? "yes" : "no");
+  const [lenderNote, setLenderNote] = useState(caseRow.lender_note ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,18 +125,35 @@ export function PoCaseWorkspace({
     const price = parseFloat(offerPrice);
     const year = parseInt(registrationYear, 10);
     const owners = parseInt(ownershipCount, 10);
+    const odometer = parseInt(odometerKm, 10);
     if (!inspectionCompleted) { setError("You must confirm the physical inspection is complete."); return; }
     if (!Number.isFinite(price) || price < 1 || price > 999999999) { setError("Enter an offer price between INR 1 and INR 99,99,99,999."); return; }
-    if (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR) { setError(`Model year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`); return; }
+    if (!make.trim()) { setError("Make is required."); return; }
+    if (!model.trim()) { setError("Model is required."); return; }
+    if (!fuelType) { setError("Fuel type is required."); return; }
+    if (!transmission) { setError("Transmission is required."); return; }
+    if (!Number.isInteger(odometer) || odometer < 0 || odometer > 999999) { setError("Enter a valid odometer reading between 0 and 999999 km."); return; }
+    if (hasLoan === "") { setError("Loan / hypothecation status is required."); return; }
+    if (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR) { setError(`Year of manufacture must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`); return; }
     if (!Number.isInteger(owners) || owners < 1 || owners > 10) { setError("Ownership count must be between 1 and 10."); return; }
+    if (!requiredAnglesFilled) { setError("Upload all 5 required angle photos (front, rear, left, right, interior/odometer)."); return; }
     setSubmitting(true);
     const { error: rpcError } = await supabase.rpc("submit_po_evaluation", {
       p_case_id: caseRow.id,
       p_inspection_completed: inspectionCompleted,
       p_inspection_notes: inspectionNotes || null,
       p_offer_price: price,
+      p_make: make.trim(),
+      p_model: model.trim(),
+      p_variant: variant.trim() || null,
+      p_color: color.trim() || null,
       p_registration_year: year,
+      p_fuel_type: fuelType,
+      p_transmission: transmission,
+      p_odometer_km: odometer,
       p_ownership_count: owners,
+      p_has_loan: hasLoan === "yes",
+      p_lender_note: lenderNote || null,
     });
     setSubmitting(false);
     if (rpcError) { setError(rpcError.message); return; }
@@ -210,6 +244,54 @@ export function PoCaseWorkspace({
 
   const isListedForBrokers = caseRow.status === "listed_for_brokers";
   const nonRcPhotos = photos.filter((p) => p.category !== "rc_book");
+
+  // ── Required angle photos (pending_evaluation) ───────────────────────────
+  const [uploadingAngle, setUploadingAngle] = useState<string | null>(null);
+  const requiredAnglesFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
+
+  async function handleAnglePhotoSelect(file: File, category: string) {
+    setError(null);
+    if (!file.type.startsWith("image/")) { setError("Only image files are allowed."); return; }
+    if (file.size > MAX_FILE_BYTES) { setError("Each photo must be 5 MB or smaller."); return; }
+    setUploadingAngle(category);
+    const existing = photos.find((p) => p.category === category);
+    if (existing) {
+      await supabase.storage.from("vehicle-photos").remove([existing.storage_path]);
+      await supabase.from("case_photos").delete().eq("id", existing.id);
+      setPhotos((prev) => prev.filter((p) => p.id !== existing.id));
+    }
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const photoId = crypto.randomUUID();
+    const path = `${caseRow.id}/${photoId}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("vehicle-photos").upload(path, file);
+    if (uploadError) { setError(uploadError.message); setUploadingAngle(null); return; }
+    const { data: photoRow, error: insertError } = await supabase
+      .from("case_photos")
+      .insert({
+        case_id: caseRow.id,
+        storage_path: path,
+        category,
+        is_plate_visible: category === "front" || category === "rear",
+        file_size_bytes: file.size,
+        mime_type: file.type,
+        uploaded_by: caseRow.assigned_po_id,
+      })
+      .select("id, category, storage_path, file_size_bytes, mime_type, created_at, broker_visible, is_plate_visible")
+      .single();
+    setUploadingAngle(null);
+    if (insertError || !photoRow) {
+      await supabase.storage.from("vehicle-photos").remove([path]);
+      setError(insertError?.message ?? "Failed to record photo");
+      return;
+    }
+    setPhotos((prev) => [...prev, photoRow as PhotoRow]);
+  }
+
+  async function removeAnglePhoto(photo: PhotoRow) {
+    await supabase.storage.from("vehicle-photos").remove([photo.storage_path]);
+    await supabase.from("case_photos").delete().eq("id", photo.id);
+    setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+  }
 
   async function handlePoPhotoSelect(file: File) {
     setError(null);
@@ -304,7 +386,7 @@ export function PoCaseWorkspace({
           <DetailRow label="Model" value={caseRow.model} />
           <DetailRow label="Variant" value={caseRow.variant} />
           <DetailRow label="Colour" value={caseRow.color} />
-          <DetailRow label="Model year" value={caseRow.registration_year?.toString()} />
+          <DetailRow label="Year of manufacture" value={caseRow.registration_year?.toString()} />
           <DetailRow label="Fuel type" value={caseRow.fuel_type} />
           <DetailRow label="Transmission" value={caseRow.transmission} />
           <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
@@ -322,6 +404,98 @@ export function PoCaseWorkspace({
         <Card>
           <CardTitle>Vehicle Photos</CardTitle>
           <PhotoGalleryPo photos={photos} />
+        </Card>
+      )}
+
+      {/* ── Verify & complete vehicle details (editable while evaluating) ── */}
+      {!offer && canEvaluate && caseRow.evaluation_started_at && (
+        <Card>
+          <CardTitle>Verify &amp; Complete Vehicle Details</CardTitle>
+          <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+            The Sales Officer&apos;s entry is only a starting point. Verify every field against the
+            vehicle and the customer, and fill in anything missing -- these details affect valuation.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Make" required>
+              <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className={inputClass} />
+            </FormField>
+            <FormField label="Model" required>
+              <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className={inputClass} />
+            </FormField>
+            <FormField label="Variant">
+              <input type="text" value={variant} onChange={(e) => setVariant(e.target.value)} placeholder="Optional" className={inputClass} />
+            </FormField>
+            <FormField label="Colour">
+              <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Optional" className={inputClass} />
+            </FormField>
+            <FormField label="Year of manufacture" required>
+              <select value={registrationYear} onChange={(e) => setRegistrationYear(e.target.value)} className={inputClass}>
+                <option value="">Select...</option>
+                {REGISTRATION_YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Fuel type" required>
+              <select value={fuelType} onChange={(e) => setFuelType(e.target.value as Enums<"fuel_type">)} className={inputClass}>
+                <option value="">Select...</option>
+                <option value="petrol">Petrol</option>
+                <option value="diesel">Diesel</option>
+                <option value="cng">CNG</option>
+                <option value="electric">Electric</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </FormField>
+            <FormField label="Transmission" required>
+              <select value={transmission} onChange={(e) => setTransmission(e.target.value as Enums<"transmission_type">)} className={inputClass}>
+                <option value="">Select...</option>
+                <option value="manual">Manual</option>
+                <option value="automatic">Automatic</option>
+              </select>
+            </FormField>
+            <FormField label="Odometer reading (km)" required>
+              <input type="number" min={0} max={999999} step={1} value={odometerKm} onChange={(e) => setOdometerKm(e.target.value)} className={inputClass} />
+            </FormField>
+            <FormField label="Ownership count" required>
+              <input type="number" min={1} max={10} step={1} value={ownershipCount} onChange={(e) => setOwnershipCount(e.target.value)} className={inputClass} />
+            </FormField>
+            <FormField label="Loan / hypothecation status" required>
+              <select value={hasLoan} onChange={(e) => setHasLoan(e.target.value)} className={inputClass}>
+                <option value="">Select...</option>
+                <option value="no">No active loan</option>
+                <option value="yes">Active loan</option>
+              </select>
+            </FormField>
+            {hasLoan === "yes" && (
+              <FormField label="Lender note">
+                <input type="text" value={lenderNote} onChange={(e) => setLenderNote(e.target.value)} className={inputClass} placeholder="Lender name / details" />
+              </FormField>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Required angle photos (PO takes these if the SO didn't) ── */}
+      {!offer && canEvaluate && caseRow.evaluation_started_at && (
+        <Card>
+          <CardTitle>Required Vehicle Photos</CardTitle>
+          <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+            All 5 standard angles are required before you can submit your evaluation. Max 5MB per photo.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+            {REQUIRED_ANGLES.map((angle) => {
+              const photo = photos.find((p) => p.category === angle.key);
+              return (
+                <PhotoSlot
+                  key={angle.key}
+                  label={`${angle.label} *`}
+                  photo={photo}
+                  disabled={false}
+                  uploading={uploadingAngle === angle.key}
+                  onSelect={(file) => handleAnglePhotoSelect(file, angle.key)}
+                  onRemove={photo ? () => removeAnglePhoto(photo) : undefined}
+                />
+              );
+            })}
+          </div>
         </Card>
       )}
 
@@ -375,25 +549,6 @@ export function PoCaseWorkspace({
             <textarea value={inspectionNotes} onChange={(e) => setInspectionNotes(e.target.value)} rows={3} className={`mt-1 w-full ${inputClass}`} />
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Model year <span className="text-red-500 dark:text-red-400">*</span>
-              </label>
-              <select value={registrationYear} onChange={(e) => setRegistrationYear(e.target.value)} className={`mt-1 ${inputClass}`}>
-                <option value="">Select...</option>
-                {REGISTRATION_YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Ownership count <span className="text-red-500 dark:text-red-400">*</span>
-              </label>
-              <input type="number" min={1} max={10} step={1} value={ownershipCount} onChange={(e) => setOwnershipCount(e.target.value)} className={`mt-1 ${inputClass}`} />
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Verify and fill in the SO-reported model year and ownership count — both affect valuation.</p>
-
           <div className="mt-4">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Nippon&apos;s offered price (INR) <span className="text-red-500 dark:text-red-400">*</span>
@@ -401,7 +556,18 @@ export function PoCaseWorkspace({
             <input type="number" min={1} max={999999999} step={1} value={offerPrice} onChange={(e) => setOfferPrice(e.target.value)} className={inputClass} />
           </div>
 
-          <Button onClick={handleSubmit} disabled={!inspectionCompleted || submitting} title={!inspectionCompleted ? "Confirm physical inspection first" : undefined} className="mt-5">
+          <Button
+            onClick={handleSubmit}
+            disabled={!inspectionCompleted || submitting || !!uploadingAngle}
+            title={
+              !inspectionCompleted
+                ? "Confirm physical inspection first"
+                : !requiredAnglesFilled
+                ? "Upload all 5 required angle photos first"
+                : undefined
+            }
+            className="mt-5"
+          >
             {submitting ? "Submitting..." : "Submit Evaluation & Offer"}
           </Button>
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">This is final once submitted — offers cannot be revised.</p>
@@ -992,6 +1158,95 @@ function PhotoThumbPo({ photo, label }: { photo: PhotoRow; label: string }) {
         <div className="h-20 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
       )}
       <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{(photo.file_size_bytes / 1024).toFixed(0)} KB</p>
+    </div>
+  );
+}
+
+// ─── Upload-capable photo slot (required angle photos) ───────────────────────
+
+function PhotoSlot({
+  label,
+  photo,
+  disabled,
+  uploading,
+  onSelect,
+  onRemove,
+}: {
+  label: string;
+  photo?: PhotoRow;
+  disabled: boolean;
+  uploading: boolean;
+  onSelect: (file: File) => void;
+  onRemove?: () => void;
+}) {
+  const [thumbnail, setThumbnail] = useState<{ id: string; url: string } | null>(null);
+  const thumbUrl = thumbnail?.id === photo?.id ? thumbnail?.url : null;
+
+  useEffect(() => {
+    if (!photo) return;
+    let cancelled = false;
+    fetch(`/api/photos/${photo.id}/signed-url`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.url) setThumbnail({ id: photo.id, url: data.url });
+      })
+      .catch(() => { if (!cancelled) setThumbnail(null); });
+    return () => {
+      cancelled = true;
+    };
+  }, [photo]);
+
+  return (
+    <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+      <p className="mb-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">{label}</p>
+      {photo ? (
+        <div className="space-y-1">
+          {thumbUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={thumbUrl} alt={label} className="h-20 w-full rounded object-cover" />
+          ) : (
+            <div className="h-20 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+          )}
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+            {(photo.file_size_bytes / 1024).toFixed(0)} KB
+          </p>
+          {onRemove && (
+            <button
+              onClick={onRemove}
+              className="inline-flex items-center gap-0.5 text-xs text-red-600 hover:underline dark:text-red-400"
+            >
+              <X className="h-3 w-3" /> Remove
+            </button>
+          )}
+        </div>
+      ) : (
+        <label
+          className={`flex h-20 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded border border-dashed text-xs ${
+            disabled
+              ? "border-zinc-200 text-zinc-300 dark:border-zinc-800 dark:text-zinc-700"
+              : "border-zinc-300 text-zinc-500 hover:border-blue-400 hover:bg-blue-50/50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-blue-500 dark:hover:bg-blue-950/20"
+          }`}
+        >
+          {uploading ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <Camera className="h-4 w-4" strokeWidth={1.5} />
+          )}
+          <span>{uploading ? "Uploading..." : "Upload"}</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            disabled={disabled || uploading}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onSelect(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
     </div>
   );
 }

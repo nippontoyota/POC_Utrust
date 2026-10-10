@@ -653,8 +653,17 @@ export type Database = {
           p_inspection_completed: boolean
           p_inspection_notes: string | null
           p_offer_price: number
+          p_make: string
+          p_model: string
+          p_variant: string | null
+          p_color: string | null
           p_registration_year: number
+          p_fuel_type: Database["public"]["Enums"]["fuel_type"]
+          p_transmission: Database["public"]["Enums"]["transmission_type"]
+          p_odometer_km: number
           p_ownership_count: number
+          p_has_loan: boolean
+          p_lender_note: string | null
         }
         Returns: Database["public"]["Tables"]["cases"]["Row"]
       }

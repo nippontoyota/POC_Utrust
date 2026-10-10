@@ -142,7 +142,7 @@ export function CaseWorkspace({
 
     const year = Number(fields.registration_year);
     if (fields.registration_year && (!Number.isInteger(year) || year < MIN_REGISTRATION_YEAR || year > CURRENT_YEAR)) {
-      return `Model year must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
+      return `Year of manufacture must be between ${MIN_REGISTRATION_YEAR} and ${CURRENT_YEAR}.`;
     }
 
     const odometer = Number(fields.odometer_km);
@@ -361,8 +361,7 @@ export function CaseWorkspace({
   const additionalPhotos = photos.filter((p) => p.category === "other");
   const totalPhotos = photos.filter(p => p.category !== "rc_book").length;
   const rcBookPhoto = photos.find(p => p.category === "rc_book");
-  const requiredAnglesFilled = REQUIRED_ANGLES.every((a) => photos.some((p) => p.category === a.key));
-  const canSubmit = requiredAnglesFilled && !submitting && !uploadingCategory;
+  const canSubmit = !submitting && !uploadingCategory;
 
   return (
     <div className="space-y-6">
@@ -534,7 +533,7 @@ export function CaseWorkspace({
               />
             </FormField>
           )}
-          <FormField label="Model year">
+          <FormField label="Year of manufacture">
             <select
               disabled={!isDraft}
               value={fields.registration_year}
@@ -643,7 +642,8 @@ export function CaseWorkspace({
       <Card>
         <h2 className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Vehicle Photos</h2>
         <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-          5 standard angles required, plus up to {MAX_TOTAL_PHOTOS} total. Max 5MB per photo.
+          Optional at this stage -- up to {MAX_TOTAL_PHOTOS} total, max 5MB per photo. The Purchase
+          Officer will take any missing required angles during evaluation.
         </p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -652,7 +652,7 @@ export function CaseWorkspace({
             return (
               <PhotoSlot
                 key={angle.key}
-                label={`${angle.label} *`}
+                label={angle.label}
                 photo={photo}
                 disabled={!isDraft}
                 uploading={uploadingCategory === angle.key}
@@ -875,13 +875,7 @@ export function CaseWorkspace({
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title={
-              !requiredAnglesFilled
-                ? "Upload all 5 required angle photos (front, rear, left, right, interior/odometer)"
-                : uploadingCategory
-                ? "Wait for the photo upload to finish"
-                : undefined
-            }
+            title={uploadingCategory ? "Wait for the photo upload to finish" : undefined}
           >
             {submitting ? "Submitting..." : "Submit for Evaluation"}
           </Button>
