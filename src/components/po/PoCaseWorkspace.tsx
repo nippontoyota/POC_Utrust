@@ -747,7 +747,6 @@ export function PoCaseWorkspace({
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   disabled={uploadingPhoto}
                   className="hidden"
                   onChange={(e) => {
@@ -1237,7 +1236,6 @@ function PhotoSlot({
           <input
             type="file"
             accept="image/*"
-            capture="environment"
             disabled={disabled || uploading}
             className="hidden"
             onChange={(e) => {

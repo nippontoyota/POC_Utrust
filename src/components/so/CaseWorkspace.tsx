@@ -990,12 +990,11 @@ function PhotoSlot({
           }`}
         >
           <Camera className="h-4 w-4" strokeWidth={1.5} />
-          {uploading ? "Uploading..." : "Take photo"}
+          {uploading ? "Uploading..." : "Add photo"}
           <input
             type="file"
             accept="image/*"
-            capture="environment"
-            aria-label={`Take photo: ${label}`}
+            aria-label={`Add photo: ${label}`}
             disabled={disabled || uploading}
             className="hidden"
             onChange={(e) => {
