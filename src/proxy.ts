@@ -10,12 +10,13 @@ const ROLE_HOME: Record<string, string> = {
   po_manager: "/manager/dashboard",
   admin: "/admin/dashboard",
   broker_coordinator: "/coordinator/cases",
+  ceo: "/ceo",
 };
 
 const MANAGER_ROLES = new Set(["sales_manager", "cluster_manager", "po_manager"]);
 
 const PUBLIC_PATHS = ["/login", "/signup", "/broker-signup", "/auth/callback"];
-const STAFF_PATHS = ["/admin", "/manager", "/po", "/so", "/coordinator"];
+const STAFF_PATHS = ["/admin", "/manager", "/po", "/so", "/coordinator", "/ceo"];
 
 function ownsStaffPath(role: string, pathname: string) {
   return (
@@ -23,7 +24,8 @@ function ownsStaffPath(role: string, pathname: string) {
     (MANAGER_ROLES.has(role) && pathname.startsWith("/manager")) ||
     (role === "purchase_officer" && pathname.startsWith("/po")) ||
     (role === "sales_officer" && pathname.startsWith("/so")) ||
-    (role === "broker_coordinator" && pathname.startsWith("/coordinator"))
+    (role === "broker_coordinator" && pathname.startsWith("/coordinator")) ||
+    (role === "ceo" && pathname.startsWith("/ceo"))
   );
 }
 

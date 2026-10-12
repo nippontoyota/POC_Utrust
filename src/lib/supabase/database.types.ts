@@ -1,5 +1,6 @@
 import type { MarketplaceFunctions } from "@/lib/broker";
 import type { ManagerFunctions } from "@/lib/poManager";
+import type { CeoFunctions } from "@/lib/ceo";
 
 export type Json =
   | string
@@ -591,7 +592,7 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
-    Functions: MarketplaceFunctions & ManagerFunctions & {
+    Functions: MarketplaceFunctions & ManagerFunctions & CeoFunctions & {
       current_profile_branch: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_cluster: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_role: {
@@ -698,6 +699,7 @@ export type Database = {
         | "po_manager"
         | "admin"
         | "broker_coordinator"
+        | "ceo"
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"

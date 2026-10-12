@@ -21,6 +21,8 @@ const ROLE_HOME: Record<string, string> = {
   cluster_manager: "/manager/dashboard",
   po_manager: "/manager/dashboard",
   admin: "/admin/dashboard",
+  broker_coordinator: "/coordinator/cases",
+  ceo: "/ceo",
 };
 
 export default function LoginPage() {

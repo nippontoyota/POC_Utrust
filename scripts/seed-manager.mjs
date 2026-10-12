@@ -8,6 +8,7 @@
 //   node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>
 //   node scripts/seed-manager.mjs broker_coordinator <employeeId> <fullName> <password>
 //   node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>
+//   node scripts/seed-manager.mjs ceo <employeeId> <fullName> <password>
 //
 // Examples:
 //   node scripts/seed-manager.mjs sales_manager SM001 "Ravi Nair" CO01A salesmgr123
@@ -15,6 +16,7 @@
 //   node scripts/seed-manager.mjs po_manager POM001 "Arjun Das" pomgr123
 //   node scripts/seed-manager.mjs broker_coordinator BC001 "Philip Mathew" brokercoord123
 //   node scripts/seed-manager.mjs admin ADM001 "Site Owner" adminpass123
+//   node scripts/seed-manager.mjs ceo CEO001 "Owner Name" ceopass123
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -22,8 +24,8 @@ import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROLES = ["sales_manager", "cluster_manager", "po_manager", "broker_coordinator", "admin"];
-const NO_SCOPE_ROLES = ["po_manager", "broker_coordinator", "admin"];
+const ROLES = ["sales_manager", "cluster_manager", "po_manager", "broker_coordinator", "admin", "ceo"];
+const NO_SCOPE_ROLES = ["po_manager", "broker_coordinator", "admin", "ceo"];
 
 function loadEnvLocal() {
   const envPath = join(__dirname, "..", ".env.local");
@@ -47,6 +49,7 @@ function usageError(message) {
   console.error("  node scripts/seed-manager.mjs po_manager <employeeId> <fullName> <password>");
   console.error("  node scripts/seed-manager.mjs broker_coordinator <employeeId> <fullName> <password>");
   console.error("  node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>");
+  console.error("  node scripts/seed-manager.mjs ceo <employeeId> <fullName> <password>");
   process.exit(1);
 }
 
