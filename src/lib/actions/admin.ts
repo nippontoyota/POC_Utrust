@@ -75,6 +75,47 @@ export async function adminCreateAccount(input: {
   return {};
 }
 
+export async function adminDeleteAccount(input: { userId: string }): Promise<{ error?: string }> {
+  const adminId = await requireActiveAdminId();
+  if (!adminId) return { error: "Active admin required." };
+  if (input.userId === adminId) return { error: "You can't delete your own account." };
+
+  const service = createServiceClient();
+
+  const { data: target } = await service
+    .from("profiles")
+    .select("employee_id, full_name")
+    .eq("id", input.userId)
+    .maybeSingle();
+  if (!target) return { error: "Account not found." };
+
+  const [cases, offers, photos, negotiations, events] = await Promise.all([
+    service.from("cases").select("id", { count: "exact", head: true }).or(`sales_officer_id.eq.${input.userId},assigned_po_id.eq.${input.userId}`),
+    service.from("case_offers").select("id", { count: "exact", head: true }).eq("purchase_officer_id", input.userId),
+    service.from("case_photos").select("id", { count: "exact", head: true }).eq("uploaded_by", input.userId),
+    service.from("case_negotiations").select("id", { count: "exact", head: true }).eq("recorded_by", input.userId),
+    service.from("case_events").select("id", { count: "exact", head: true }).eq("actor_id", input.userId),
+  ]);
+
+  const hasHistory = [cases, offers, photos, negotiations, events].some((r) => (r.count ?? 0) > 0);
+  if (hasHistory) {
+    return { error: "This account has case history and can't be deleted. Deactivate it instead." };
+  }
+
+  const { error: deleteError } = await service.auth.admin.deleteUser(input.userId);
+  if (deleteError) return { error: deleteError.message };
+
+  await service.from("admin_events").insert({
+    actor_id: adminId,
+    action: "profile_deleted",
+    target_type: "profile",
+    target_id: input.userId,
+    metadata: { employee_id: target.employee_id, full_name: target.full_name },
+  });
+
+  return {};
+}
+
 export async function adminResetPassword(input: {
   userId: string;
   newPassword: string;

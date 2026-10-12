@@ -1,28 +1,40 @@
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import { isOverdue } from "@/lib/businessDays";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
+import { vehicleLabel } from "@/lib/caseRef";
 import type { Enums } from "@/lib/supabase/database.types";
+
+const inputClass =
+  "rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100";
 
 export default async function PoCasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; overdue?: string; evaluation?: string }>;
+  searchParams: Promise<{ status?: string; overdue?: string; evaluation?: string; q?: string }>;
 }) {
-  const { status, overdue: overdueFilter, evaluation } = await searchParams;
+  const { status, overdue: overdueFilter, evaluation, q } = await searchParams;
   const supabase = await createClient();
 
   let query = supabase
     .from("cases")
-    .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, submitted_at, evaluation_started_at")
+    .select(
+      "id, case_ref, customer_name, vehicle_reg_number, make, model, variant, status, customer_expected_price, submitted_at, evaluation_started_at, sales_officer:profiles!cases_sales_officer_id_fkey(full_name, employee_id)"
+    )
     .neq("status", "draft")
     .order("submitted_at", { ascending: false, nullsFirst: false });
+
+  if (q) {
+    query = query.or(`customer_name.ilike.%${q}%,vehicle_reg_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%`);
+  }
 
   if (overdueFilter || evaluation) {
     query = query.eq("status", "pending_evaluation");
@@ -55,6 +67,33 @@ export default async function PoCasesPage({
         description="Review assigned vehicles, start evaluation, and submit offer prices for customer follow-up."
       />
 
+      <form className="flex flex-wrap gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder="Search customer, vehicle, or reg number"
+            className={`w-full pl-10 ${inputClass}`}
+          />
+        </div>
+        <AutoFilterSelect name="status" defaultValue={status ?? ""} className={inputClass}>
+          <option value="">All statuses</option>
+          {Object.entries(CASE_STATUS_LABELS).filter(([value]) => value !== "draft").map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </AutoFilterSelect>
+        <Button type="submit">Filter</Button>
+        {(q || status) && (
+          <Link href="/po/cases" className="self-center text-sm text-zinc-500 hover:underline dark:text-zinc-400">
+            Clear
+          </Link>
+        )}
+      </form>
+
       {(status || overdueFilter || evaluation) && (
         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
           <span>
@@ -83,7 +122,7 @@ export default async function PoCasesPage({
                 <CaseListCard
                   key={c.id}
                   href={`/po/cases/${c.id}`}
-                  caseRef={c.case_ref ?? ""}
+                  title={`${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}`}
                   status={c.status}
                   extraBadge={
                     overdue ? (
@@ -93,8 +132,8 @@ export default async function PoCasesPage({
                     ) : undefined
                   }
                   rows={[
+                    { label: "Sales Officer", value: c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—" },
                     { label: "Customer", value: c.customer_name ?? "—" },
-                    { label: "Vehicle", value: c.vehicle_reg_number ?? "—" },
                     { label: "Expected Price", value: formatINR(c.customer_expected_price) },
                     ...(c.status === "pending_evaluation" ? [{ label: "Evaluation", value: c.evaluation_started_at ? "In progress" : "Awaiting start" }] : []),
                   ]}
@@ -104,12 +143,12 @@ export default async function PoCasesPage({
           </div>
 
           <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
-                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
+                  <th className="whitespace-nowrap px-4 py-3">Sales Officer</th>
+                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Expected Price</th>
                   <th className="whitespace-nowrap px-4 py-3">Status</th>
                 </tr>
@@ -124,11 +163,14 @@ export default async function PoCasesPage({
                           href={`/po/cases/${c.id}`}
                           className="font-black text-[var(--brand)] hover:underline"
                         >
-                          {c.case_ref}
+                          {vehicleLabel(c.make, c.model, c.variant)}
+                          {c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}
                         </Link>
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                        {c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—"}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_name}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.vehicle_reg_number}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{formatINR(c.customer_expected_price)}</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <div className="flex items-center gap-2">

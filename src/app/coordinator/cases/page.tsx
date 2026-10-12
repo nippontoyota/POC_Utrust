@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
+import { vehicleLabel } from "@/lib/caseRef";
 import type { Enums } from "@/lib/supabase/database.types";
 
 const inputClass =
@@ -31,7 +32,9 @@ export default async function CoordinatorCasesPage({
 
   let query = supabase
     .from("cases")
-    .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, branches(name)")
+    .select(
+      "id, case_ref, customer_name, vehicle_reg_number, make, model, variant, status, customer_expected_price, branches(name), sales_officer:profiles!cases_sales_officer_id_fkey(full_name, employee_id)"
+    )
     .order("listed_at", { ascending: false });
 
   if (status) {
@@ -58,7 +61,7 @@ export default async function CoordinatorCasesPage({
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Search case ref, customer, or reg number"
+            placeholder="Search customer, vehicle, or reg number"
             className={`w-full pl-10 ${inputClass}`}
           />
         </div>
@@ -87,12 +90,12 @@ export default async function CoordinatorCasesPage({
               <CaseListCard
                 key={c.id}
                 href={`/coordinator/cases/${c.id}`}
-                caseRef={c.case_ref ?? "(draft)"}
+                title={`${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}`}
                 status={c.status}
                 rows={[
                   { label: "Branch", value: c.branches?.name ?? "—" },
+                  { label: "Sales Officer", value: c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—" },
                   { label: "Customer", value: c.customer_name ?? "—" },
-                  { label: "Vehicle", value: c.vehicle_reg_number ?? "—" },
                   { label: "Expected Price", value: formatINR(c.customer_expected_price) },
                 ]}
               />
@@ -100,13 +103,13 @@ export default async function CoordinatorCasesPage({
           </div>
 
           <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
-                  <th className="whitespace-nowrap px-4 py-3">Branch</th>
-                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
+                  <th className="whitespace-nowrap px-4 py-3">Branch</th>
+                  <th className="whitespace-nowrap px-4 py-3">Sales Officer</th>
+                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Expected Price</th>
                   <th className="whitespace-nowrap px-4 py-3">Status</th>
                 </tr>
@@ -116,12 +119,15 @@ export default async function CoordinatorCasesPage({
                   <tr key={c.id} className="hover:bg-[var(--panel-soft)]">
                     <td className="whitespace-nowrap px-4 py-3">
                       <Link href={`/coordinator/cases/${c.id}`} className="font-black text-[var(--brand)] hover:underline">
-                        {c.case_ref ?? "(draft)"}
+                        {vehicleLabel(c.make, c.model, c.variant)}
+                        {c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.branches?.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                      {c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—"}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_name}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.vehicle_reg_number}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{formatINR(c.customer_expected_price)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={c.status} />

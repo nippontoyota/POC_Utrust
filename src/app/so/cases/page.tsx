@@ -1,15 +1,20 @@
 import Link from "next/link";
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createDraftCase } from "@/lib/actions/cases";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
 import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
+import { vehicleLabel } from "@/lib/caseRef";
 import type { Enums } from "@/lib/supabase/database.types";
+
+const inputClass =
+  "rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100";
 
 type BrokerFilter = "open" | "reserved" | "expiring";
 type ReservationQuery = PromiseLike<{ data: { case_id: string | null }[] | null }> & {
@@ -48,9 +53,9 @@ async function getActiveReservationCaseIds(
 export default async function SoCasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; broker?: string }>;
+  searchParams: Promise<{ status?: string; broker?: string; q?: string }>;
 }) {
-  const { status, broker: brokerParam } = await searchParams;
+  const { status, broker: brokerParam, q } = await searchParams;
   const broker = ["open", "reserved", "expiring"].includes(brokerParam ?? "")
     ? (brokerParam as BrokerFilter)
     : null;
@@ -58,9 +63,13 @@ export default async function SoCasesPage({
 
   let query = supabase
     .from("cases")
-    .select("id, case_ref, customer_name, vehicle_reg_number, status, customer_expected_price, created_at")
+    .select("id, case_ref, customer_name, vehicle_reg_number, make, model, variant, status, customer_expected_price, created_at")
     .neq("status", "draft")
     .order("created_at", { ascending: false });
+
+  if (q) {
+    query = query.or(`customer_name.ilike.%${q}%,vehicle_reg_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%`);
+  }
 
   if (broker === "open") {
     const activeReservationCaseIds = await getActiveReservationCaseIds(supabase);
@@ -106,6 +115,33 @@ export default async function SoCasesPage({
         </form>}
       />
 
+      <form className="flex flex-wrap gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder="Search customer, vehicle, or reg number"
+            className={`w-full pl-10 ${inputClass}`}
+          />
+        </div>
+        <AutoFilterSelect name="status" defaultValue={status ?? ""} className={inputClass}>
+          <option value="">All statuses</option>
+          {Object.entries(CASE_STATUS_LABELS).filter(([value]) => value !== "draft").map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </AutoFilterSelect>
+        <Button type="submit">Filter</Button>
+        {(q || status) && (
+          <Link href="/so/cases" className="self-center text-sm text-zinc-500 hover:underline dark:text-zinc-400">
+            Clear
+          </Link>
+        )}
+      </form>
+
       {(status || broker) && (
         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
           <span>
@@ -132,11 +168,10 @@ export default async function SoCasesPage({
               <CaseListCard
                 key={c.id}
                 href={`/so/cases/${c.id}`}
-                caseRef={c.case_ref ?? "(draft)"}
+                title={c.case_ref ? `${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}` : "New Case (Draft)"}
                 status={c.status}
                 rows={[
                   { label: "Customer", value: c.customer_name ?? "—" },
-                  { label: "Vehicle", value: c.vehicle_reg_number ?? "—" },
                   { label: "Expected Price", value: formatINR(c.customer_expected_price) },
                 ]}
               />
@@ -148,9 +183,8 @@ export default async function SoCasesPage({
             <table className="w-full min-w-[560px] text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
-                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
+                  <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Expected Price</th>
                   <th className="whitespace-nowrap px-4 py-3">Status</th>
                 </tr>
@@ -163,11 +197,10 @@ export default async function SoCasesPage({
                         href={`/so/cases/${c.id}`}
                         className="font-black text-[var(--brand)] hover:underline"
                       >
-                        {c.case_ref ?? "(draft)"}
+                        {c.case_ref ? `${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}` : "New Case (Draft)"}
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_name ?? "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.vehicle_reg_number ?? "—"}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{formatINR(c.customer_expected_price)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={c.status} />

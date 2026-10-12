@@ -21,6 +21,7 @@ import {
 } from "@/lib/validation";
 import { VEHICLE_MAKES } from "@/lib/vehicleModels";
 import { getVehicleColors } from "@/lib/vehicleColors";
+import { shortCaseRef } from "@/lib/caseRef";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
 
 type CaseRow = Tables<"cases">;
@@ -374,7 +375,7 @@ export function CaseWorkspace({
             <ArrowLeft className="h-3.5 w-3.5" /> My Cases
           </Link>
           <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            {initialCase.case_ref ?? "New Case (Draft)"}
+            {shortCaseRef(initialCase.case_ref) ?? "New Case (Draft)"}
           </h1>
         </div>
         <StatusBadge status={initialCase.status} />

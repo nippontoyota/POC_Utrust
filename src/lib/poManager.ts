@@ -33,6 +33,9 @@ export type PoManagerCaseListItem = {
   branch_name: string;
   po_name: string;
   po_employee_id: string;
+  so_name: string | null;
+  so_employee_id: string | null;
+  vehicle_reg_number: string | null;
   make: string | null;
   model: string | null;
   variant: string | null;

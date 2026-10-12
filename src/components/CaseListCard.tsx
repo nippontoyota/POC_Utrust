@@ -5,13 +5,13 @@ import type { Enums } from "@/lib/supabase/database.types";
 
 export function CaseListCard({
   href,
-  caseRef,
+  title,
   status,
   rows,
   extraBadge,
 }: {
   href: string;
-  caseRef: string;
+  title: string;
   status: Enums<"case_status">;
   rows: { label: string; value: ReactNode }[];
   extraBadge?: ReactNode;
@@ -22,7 +22,7 @@ export function CaseListCard({
       className="block rounded-[1.25rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_16px_45px_rgb(33_25_20/0.06)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--brand)]"
     >
       <div className="mb-3 flex items-start justify-between gap-2">
-        <p className="font-black text-zinc-950 dark:text-zinc-100">{caseRef}</p>
+        <p className="font-black text-zinc-950 dark:text-zinc-100">{title}</p>
         <div className="flex flex-wrap justify-end gap-1.5">
           <StatusBadge status={status} />
           {extraBadge}

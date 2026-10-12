@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { ActionFeedback, useBrokerAction } from "@/components/broker/useBrokerAction";
 import type { Enums, Tables } from "@/lib/supabase/database.types";
+import { shortCaseRef } from "@/lib/caseRef";
 
 type CaseRow = Tables<"cases">;
 type PhotoRow = Pick<
@@ -363,7 +364,7 @@ export function PoCaseWorkspace({
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Assigned Cases
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{caseRow.case_ref}</h1>
+          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{shortCaseRef(caseRow.case_ref)}</h1>
         </div>
         <StatusBadge status={caseRow.status} />
       </div>

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AccountForm } from "@/components/admin/AccountForm";
 import { ActivateToggle } from "@/components/admin/ActivateToggle";
 import { ResetPasswordForm } from "@/components/admin/ResetPasswordForm";
+import { DeleteAccountButton } from "@/components/admin/DeleteAccountButton";
 
 export default async function EditAccountPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,6 +60,11 @@ export default async function EditAccountPage({ params }: { params: Promise<{ id
       <Card>
         <CardTitle>Reset Password</CardTitle>
         <ResetPasswordForm userId={target.id} targetType="profile" />
+      </Card>
+
+      <Card>
+        <CardTitle>Danger Zone</CardTitle>
+        <DeleteAccountButton profileId={target.id} isSelf={target.id === user!.id} />
       </Card>
     </div>
   );

@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StaffBrokerPanel } from "@/components/broker/StaffBrokerPanel";
 import type { Enums } from "@/lib/supabase/database.types";
 import type { PoManagerCaseDetail } from "@/lib/poManager";
+import { shortCaseRef } from "@/lib/caseRef";
 
 export default async function ManagerCaseDetailPage({
   params,
@@ -42,7 +43,7 @@ export default async function ManagerCaseDetailPage({
             >
               <ArrowLeft className="h-3.5 w-3.5" /> All Cases
             </Link>
-            <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{caseRow.case_ref ?? "(draft case)"}</h1>
+            <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{shortCaseRef(caseRow.case_ref) ?? "(draft case)"}</h1>
           </div>
           <StatusBadge status={caseRow.status as Enums<"case_status">} />
         </div>
@@ -151,7 +152,7 @@ export default async function ManagerCaseDetailPage({
           >
             <ArrowLeft className="h-3.5 w-3.5" /> All Cases
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{caseRow.case_ref ?? "(draft case)"}</h1>
+          <h1 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{shortCaseRef(caseRow.case_ref) ?? "(draft case)"}</h1>
         </div>
         <StatusBadge status={caseRow.status} />
       </div>

@@ -12,6 +12,7 @@ import { CaseListCard } from "@/components/CaseListCard";
 import { formatINR } from "@/lib/formatCurrency";
 import type { Enums } from "@/lib/supabase/database.types";
 import type { PoManagerCaseList } from "@/lib/poManager";
+import { vehicleLabel } from "@/lib/caseRef";
 
 const inputClass =
   "rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100";
@@ -53,7 +54,7 @@ export default async function ManagerCasesPage({
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Search case ref, make, model, or reg number"
+              placeholder="Search vehicle, reg number, or Sales Officer"
               className={`w-full pl-10 ${inputClass}`}
             />
           </div>
@@ -88,12 +89,12 @@ export default async function ManagerCasesPage({
                 <CaseListCard
                   key={c.id}
                   href={`/manager/cases/${c.id}`}
-                  caseRef={c.case_ref ?? "(draft)"}
+                  title={`${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}`}
                   status={c.status as Enums<"case_status">}
                   rows={[
                     { label: "Branch", value: c.branch_name },
+                    { label: "Sales Officer", value: c.so_name ? `${c.so_name} (${c.so_employee_id})` : "—" },
                     { label: "PO", value: `${c.po_name} (${c.po_employee_id})` },
-                    { label: "Vehicle", value: [c.make, c.model, c.variant].filter(Boolean).join(" ") || "—" },
                     { label: "Offer Price", value: c.offer_price != null ? formatINR(c.offer_price) : "—" },
                   ]}
                 />
@@ -101,13 +102,13 @@ export default async function ManagerCasesPage({
             </div>
 
             <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                   <tr>
-                    <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
-                    <th className="whitespace-nowrap px-4 py-3">Branch</th>
-                    <th className="whitespace-nowrap px-4 py-3">Purchase Officer</th>
                     <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
+                    <th className="whitespace-nowrap px-4 py-3">Branch</th>
+                    <th className="whitespace-nowrap px-4 py-3">Sales Officer</th>
+                    <th className="whitespace-nowrap px-4 py-3">Purchase Officer</th>
                     <th className="whitespace-nowrap px-4 py-3">Offer Price</th>
                     <th className="whitespace-nowrap px-4 py-3">Status</th>
                   </tr>
@@ -117,15 +118,16 @@ export default async function ManagerCasesPage({
                     <tr key={c.id} className="hover:bg-[var(--panel-soft)]">
                       <td className="whitespace-nowrap px-4 py-3">
                         <Link href={`/manager/cases/${c.id}`} className="font-black text-[var(--brand)] hover:underline">
-                          {c.case_ref ?? "(draft)"}
+                          {vehicleLabel(c.make, c.model, c.variant)}
+                          {c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}
                         </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.branch_name}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
-                        {c.po_name} ({c.po_employee_id})
+                        {c.so_name ? `${c.so_name} (${c.so_employee_id})` : "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
-                        {[c.make, c.model, c.variant].filter(Boolean).join(" ") || "—"}
+                        {c.po_name} ({c.po_employee_id})
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                         {c.offer_price != null ? formatINR(c.offer_price) : "—"}
@@ -157,7 +159,9 @@ export default async function ManagerCasesPage({
 
   let query = supabase
     .from("cases")
-    .select("id, case_ref, customer_name, customer_mobile, vehicle_reg_number, status, customer_expected_price, branches(name)")
+    .select(
+      "id, case_ref, customer_name, customer_mobile, vehicle_reg_number, make, model, variant, status, customer_expected_price, branches(name), sales_officer:profiles!cases_sales_officer_id_fkey(full_name, employee_id)"
+    )
     .neq("status", "draft")
     .order("created_at", { ascending: false });
 
@@ -232,13 +236,12 @@ export default async function ManagerCasesPage({
               <CaseListCard
                 key={c.id}
                 href={`/manager/cases/${c.id}`}
-                caseRef={c.case_ref ?? "(draft)"}
+                title={`${vehicleLabel(c.make, c.model, c.variant)}${c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}`}
                 status={c.status}
                 rows={[
                   { label: "Branch", value: c.branches?.name ?? "—" },
+                  { label: "Sales Officer", value: c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—" },
                   { label: "Customer", value: c.customer_name ?? "—" },
-                  { label: "Mobile", value: c.customer_mobile ?? "—" },
-                  { label: "Vehicle", value: c.vehicle_reg_number ?? "—" },
                   { label: "Expected Price", value: formatINR(c.customer_expected_price) },
                 ]}
               />
@@ -246,14 +249,14 @@ export default async function ManagerCasesPage({
           </div>
 
           <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="whitespace-nowrap px-4 py-3">Case Ref</th>
+                  <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
                   <th className="whitespace-nowrap px-4 py-3">Branch</th>
+                  <th className="whitespace-nowrap px-4 py-3">Sales Officer</th>
                   <th className="whitespace-nowrap px-4 py-3">Customer</th>
                   <th className="whitespace-nowrap px-4 py-3">Mobile</th>
-                  <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
                   <th className="whitespace-nowrap px-4 py-3">Expected Price</th>
                   <th className="whitespace-nowrap px-4 py-3">Status</th>
                 </tr>
@@ -263,13 +266,16 @@ export default async function ManagerCasesPage({
                   <tr key={c.id} className="hover:bg-[var(--panel-soft)]">
                     <td className="whitespace-nowrap px-4 py-3">
                       <Link href={`/manager/cases/${c.id}`} className="font-black text-[var(--brand)] hover:underline">
-                        {c.case_ref ?? "(draft)"}
+                        {vehicleLabel(c.make, c.model, c.variant)}
+                        {c.vehicle_reg_number ? ` — ${c.vehicle_reg_number}` : ""}
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.branches?.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                      {c.sales_officer ? `${c.sales_officer.full_name} (${c.sales_officer.employee_id})` : "—"}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_mobile}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.vehicle_reg_number}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{formatINR(c.customer_expected_price)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={c.status} />
