@@ -2,20 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { CeoDashboard } from "@/components/ceo/CeoDashboard";
 import type { CeoOverview } from "@/lib/ceo";
 
-export default async function CeoDashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string; to?: string; branch?: string }>;
-}) {
-  const { from, to, branch } = await searchParams;
+export default async function CeoDashboardPage() {
   const supabase = await createClient();
 
   const [{ data, error }, { data: branches }] = await Promise.all([
-    supabase.rpc("ceo_overview", {
-      p_from: from || null,
-      p_to: to || null,
-      p_branch: branch || null,
-    }),
+    supabase.rpc("ceo_overview", {}),
     supabase.from("branches").select("id, name").order("display_order"),
   ]);
 
@@ -27,11 +18,5 @@ export default async function CeoDashboardPage({
     );
   }
 
-  return (
-    <CeoDashboard
-      overview={data as unknown as CeoOverview}
-      branches={branches ?? []}
-      filters={{ from: from ?? "", to: to ?? "", branch: branch ?? "" }}
-    />
-  );
+  return <CeoDashboard overview={data as unknown as CeoOverview} branches={branches ?? []} />;
 }

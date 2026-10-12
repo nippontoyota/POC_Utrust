@@ -57,6 +57,7 @@ export type CeoCohortCase = {
   case_ref: string | null;
   status: string;
   branch_name: string;
+  submitted_at: string | null;
   make: string | null;
   model: string | null;
   variant: string | null;

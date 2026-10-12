@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   Handshake,
   Wallet,
@@ -15,21 +14,18 @@ import {
   Building2,
   Package,
   Download,
-  Search,
 } from "lucide-react";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { AutoFilterSelect } from "@/components/ui/AutoFilterSelect";
+import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatINR, formatINRCompact } from "@/lib/formatCurrency";
 import { vehicleLabel, shortCaseRef } from "@/lib/caseRef";
 import { CASE_STATUS_LABELS } from "@/lib/caseStatus";
 import { ExceptionsDrawer, type ExceptionsKind } from "./ExceptionsDrawer";
+import { ExportDialog } from "./ExportDialog";
 import type { CeoOverview, CeoCohortCase } from "@/lib/ceo";
 import type { Enums } from "@/lib/supabase/database.types";
-
-const inputClass =
-  "rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm text-zinc-950 outline-none transition focus:border-[var(--brand)] focus:ring-4 focus:ring-red-500/10 dark:bg-white/5 dark:text-zinc-100";
 
 const PIPELINE_STAGES: { key: keyof CeoOverview["pipeline"]; label: string; statuses: string[]; tone: "neutral" | "success" | "muted" }[] = [
   { key: "pending_evaluation", label: "Pending evaluation", statuses: ["pending_evaluation"], tone: "neutral" },
@@ -51,19 +47,33 @@ function csvEscape(value: string | number | null | undefined): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function CeoDashboard({
-  overview,
-  branches,
-  filters,
-}: {
-  overview: CeoOverview;
-  branches: { id: string; name: string }[];
-  filters: { from: string; to: string; branch: string };
-}) {
-  const [expandedKpi, setExpandedKpi] = useState<string | null>(null);
+function downloadCasesCsv(cases: CeoCohortCase[], suffix: string) {
+  const header = ["Case Ref", "Branch", "Vehicle", "Reg Number", "Status", "Submitted At", "Nippon Amount", "Broker Amount"];
+  const rows = cases.map((c) => [
+    c.case_ref ?? "",
+    c.branch_name,
+    vehicleLabel(c.make, c.model, c.variant),
+    c.vehicle_reg_number ?? "",
+    CASE_STATUS_LABELS[c.status as Enums<"case_status">] ?? c.status,
+    c.submitted_at ?? "",
+    c.nippon_amount ?? "",
+    c.broker_amount ?? "",
+  ]);
+  const csv = [header, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ceo-overview-${suffix}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function CeoDashboard({ overview, branches }: { overview: CeoOverview; branches: { id: string; name: string }[] }) {
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<ExceptionsKind | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const { kpis, pipeline, branch_performance, attention, broker_marketplace, cases } = overview;
 
@@ -87,175 +97,42 @@ export function CeoDashboard({
     return map;
   }, [cases]);
 
-  const recentCompleted = useMemo(
-    () =>
-      cases
-        .filter((c) => c.status === "closed" || c.status === "broker_deal_closed")
-        .slice(0, 5),
-    [cases]
-  );
-
   function casesForStage(stage: (typeof PIPELINE_STAGES)[number]) {
     return stage.statuses.flatMap((s) => casesByStatus.get(s) ?? []);
   }
 
-  function handleExport() {
-    const header = ["Case Ref", "Branch", "Vehicle", "Reg Number", "Status", "Nippon Amount", "Broker Amount"];
-    const rows = cases.map((c) => [
-      c.case_ref ?? "",
-      c.branch_name,
-      vehicleLabel(c.make, c.model, c.variant),
-      c.vehicle_reg_number ?? "",
-      CASE_STATUS_LABELS[c.status as Enums<"case_status">] ?? c.status,
-      c.nippon_amount ?? "",
-      c.broker_amount ?? "",
-    ]);
-    const csv = [header, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ceo-overview-${filters.from || "all"}-to-${filters.to || "all"}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function handleExportConfirm({ from, to, branchId }: { from: string; to: string; branchId: string }) {
+    const branchName = branchId ? branches.find((b) => b.id === branchId)?.name : undefined;
+    const filtered = cases.filter((c) => {
+      if (branchName && c.branch_name !== branchName) return false;
+      const submittedDate = c.submitted_at?.slice(0, 10);
+      if (from && (!submittedDate || submittedDate < from)) return false;
+      if (to && (!submittedDate || submittedDate > to)) return false;
+      return true;
+    });
+    downloadCasesCsv(filtered, `${from || "all"}-to-${to || "all"}${branchName ? `-${branchName}` : ""}`);
+    setExportOpen(false);
   }
 
   const maxStageCount = Math.max(1, ...PIPELINE_STAGES.map((s) => pipeline[s.key] as number));
-  const hasFilters = !!(filters.from || filters.to || filters.branch);
 
   return (
     <div className="space-y-6">
-      {/* ── Header + filters ── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--brand)]">CEO Overview</p>
-          <h1 className="mt-1 text-2xl font-black text-zinc-950 dark:text-zinc-50 sm:text-3xl">Acquisition &amp; branch performance</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">Pipeline health, completed deals, and branch results across both routes.</p>
-        </div>
-        <Button variant="secondary" onClick={handleExport}>
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-black text-zinc-950 dark:text-zinc-50 sm:text-3xl">CEO Overview</h1>
+        <Button variant="secondary" onClick={() => setExportOpen(true)}>
           <Download className="h-4 w-4" /> Export report
         </Button>
       </div>
 
-      <form className="flex flex-wrap items-end gap-3 rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_18px_55px_rgb(33_25_20/0.06)]">
-        <div>
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">Submitted from</label>
-          <input type="date" name="from" defaultValue={filters.from} className={inputClass} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">Submitted to</label>
-          <input type="date" name="to" defaultValue={filters.to} className={inputClass} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">Branch</label>
-          <AutoFilterSelect name="branch" defaultValue={filters.branch} className={inputClass} resetPage={false}>
-            <option value="">All branches</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </AutoFilterSelect>
-        </div>
-        <Button type="submit">
-          <Search className="h-4 w-4" /> Apply
-        </Button>
-        {hasFilters && (
-          <Link href="/ceo" className="text-sm font-bold text-[var(--muted)] hover:underline">
-            Clear
-          </Link>
-        )}
-        <p className="ml-auto self-center text-xs text-[var(--muted)]">
-          KPIs and pipeline reflect cases submitted in the selected period. Attention required and broker marketplace are live.
-        </p>
-      </form>
-
-      {/* ── KPI row ── */}
+      {/* ── KPI row (static) ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <KpiCard
-          id="completed"
-          icon={Handshake}
-          label="Completed deals"
-          value={kpis.completed_deals}
-          footer={`${kpis.completed_nippon} Nippon • ${kpis.completed_broker} Broker`}
-          expanded={expandedKpi === "completed"}
-          onToggle={() => setExpandedKpi((v) => (v === "completed" ? null : "completed"))}
-        >
-          {recentCompleted.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No completed deals in this period yet.</p>
-          ) : (
-            <MiniCaseList cases={recentCompleted} />
-          )}
-        </KpiCard>
-
-        <KpiCard
-          id="nippon-value"
-          icon={Wallet}
-          label="Nippon purchase value"
-          value={formatINRCompact(kpis.nippon_purchase_value)}
-          footer={`${kpis.nippon_purchase_count} completed purchases`}
-          expanded={expandedKpi === "nippon-value"}
-          onToggle={() => setExpandedKpi((v) => (v === "nippon-value" ? null : "nippon-value"))}
-        >
-          <p className="text-sm text-[var(--muted)]">
-            Exact total: <span className="font-bold text-zinc-900 dark:text-zinc-100">{formatINR(kpis.nippon_purchase_value)}</span>. Uses each
-            case&apos;s final accepted price (post-negotiation where it applies).
-          </p>
-        </KpiCard>
-
-        <KpiCard
-          id="broker-value"
-          icon={Store}
-          label="Broker deal value"
-          value={formatINRCompact(kpis.broker_deal_value)}
-          footer={`${kpis.broker_deal_count} completed broker deals`}
-          expanded={expandedKpi === "broker-value"}
-          onToggle={() => setExpandedKpi((v) => (v === "broker-value" ? null : "broker-value"))}
-        >
-          <p className="text-sm text-[var(--muted)]">
-            Exact total: <span className="font-bold text-zinc-900 dark:text-zinc-100">{formatINR(kpis.broker_deal_value)}</span>. Broker deal
-            value is not Nippon revenue.
-          </p>
-        </KpiCard>
-
-        <KpiCard
-          id="open"
-          icon={FileStack}
-          label="Open cases"
-          value={kpis.open_cases}
-          footer="Across both routes"
-          expanded={expandedKpi === "open"}
-          onToggle={() => setExpandedKpi((v) => (v === "open" ? null : "open"))}
-        >
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-            {PIPELINE_STAGES.filter((s) => s.tone === "neutral").map((s) => (
-              <div key={s.key} className="flex items-center justify-between gap-2">
-                <dt className="text-[var(--muted)]">{s.label}</dt>
-                <dd className="font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{pipeline[s.key] as number}</dd>
-              </div>
-            ))}
-          </dl>
-        </KpiCard>
-
-        <KpiCard
-          id="alerts"
-          icon={AlertTriangle}
-          label="Decision window alerts"
-          value={kpis.due_soon_count + kpis.expired_count}
-          footer={`${kpis.due_soon_count} due soon • ${kpis.expired_count} expired`}
-          tone="warning"
-          expanded={expandedKpi === "alerts"}
-          onToggle={() => setExpandedKpi((v) => (v === "alerts" ? null : "alerts"))}
-        >
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setDrawer("due_soon")}>
-              View due soon
-            </Button>
-            <Button variant="secondary" onClick={() => setDrawer("expired")}>
-              View expired
-            </Button>
-          </div>
-        </KpiCard>
+        <StatCard icon={Handshake} label="Completed deals" value={kpis.completed_deals} footer={`${kpis.completed_nippon} Nippon • ${kpis.completed_broker} Broker`} />
+        <StatCard icon={Wallet} label="Nippon purchase value" value={formatINRCompact(kpis.nippon_purchase_value)} footer={`${kpis.nippon_purchase_count} completed purchases`} />
+        <StatCard icon={Store} label="Broker deal value" value={formatINRCompact(kpis.broker_deal_value)} footer={`${kpis.broker_deal_count} completed broker deals`} />
+        <StatCard icon={FileStack} label="Open cases" value={kpis.open_cases} footer="Across both routes" />
+        <StatCard icon={AlertTriangle} label="Decision window alerts" value={kpis.due_soon_count + kpis.expired_count} footer={`${kpis.due_soon_count} due soon • ${kpis.expired_count} expired`} tone="warning" />
       </div>
 
       {/* ── Case pipeline ── */}
@@ -264,7 +141,7 @@ export function CeoDashboard({
           <CardTitle className="mb-0">Case pipeline</CardTitle>
           <span className="rounded-full bg-[var(--panel-soft)] px-3 py-1 text-xs font-bold text-[var(--muted)]">{pipeline.total} cases</span>
         </div>
-        <p className="mb-4 -mt-2 text-xs text-[var(--muted)]">Current status of the selected cohort. Click a stage to see its cases.</p>
+        <p className="mb-4 -mt-2 text-xs text-[var(--muted)]">Click a stage to see its cases.</p>
         <div className="space-y-2">
           {PIPELINE_STAGES.map((stage) => {
             const count = pipeline[stage.key] as number;
@@ -346,7 +223,7 @@ export function CeoDashboard({
         {/* ── Broker marketplace ── */}
         <Card>
           <CardTitle>Broker marketplace</CardTitle>
-          <p className="mb-4 -mt-3 text-xs text-[var(--muted)]">Live snapshot, not limited to the selected period.</p>
+          <p className="mb-4 -mt-3 text-xs text-[var(--muted)]">Live snapshot.</p>
           <div className="grid grid-cols-2 gap-3">
             <MiniStat icon={Package} label="Live listings" value={broker_marketplace.live_listings} />
             <MiniStat icon={Clock} label="Awaiting completion" value={broker_marketplace.awaiting_completion} />
@@ -367,7 +244,7 @@ export function CeoDashboard({
           <CardTitle className="mb-0">Branch performance</CardTitle>
         </div>
         {branch_performance.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">No cases in this period.</p>
+          <p className="text-sm text-[var(--muted)]">No cases yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
@@ -438,61 +315,7 @@ export function CeoDashboard({
       </p>
 
       <ExceptionsDrawer kind={drawer} attention={attention} onClose={() => setDrawer(null)} />
-    </div>
-  );
-}
-
-// ─── KPI card (inline accordion) ──────────────────────────────────────────
-
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  footer,
-  tone = "default",
-  expanded,
-  onToggle,
-  children,
-}: {
-  id: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  footer: string;
-  tone?: "default" | "warning";
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`min-w-0 rounded-[1.35rem] border shadow-[0_20px_60px_rgb(33_25_20/0.07)] dark:shadow-none ${
-        tone === "warning" ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30" : "border-[var(--line)] bg-[var(--panel)]"
-      }`}
-    >
-      <button type="button" onClick={onToggle} className="block w-full p-5 text-left" aria-expanded={expanded}>
-        <div className="flex min-h-10 items-center justify-between gap-3">
-          <p className="min-w-0 text-sm font-medium leading-snug text-[var(--muted)]">{label}</p>
-          <span
-            aria-hidden="true"
-            className={`grid size-10 shrink-0 place-items-center rounded-full ${
-              tone === "warning" ? "bg-amber-500 text-white dark:bg-amber-900 dark:text-amber-100" : "bg-black text-white dark:bg-[var(--panel-soft)] dark:text-zinc-100"
-            }`}
-          >
-            <Icon className="size-5" />
-          </span>
-        </div>
-        <p className="mt-3 text-2xl font-bold tabular-nums text-zinc-950 [overflow-wrap:anywhere] dark:text-zinc-50">{value}</p>
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <p className="text-xs text-[var(--muted)]">{footer}</p>
-          <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--muted)] transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </div>
-      </button>
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-        <div className="overflow-hidden">
-          <div className="border-t border-[var(--line)] px-5 py-4">{children}</div>
-        </div>
-      </div>
+      <ExportDialog open={exportOpen} branches={branches} onClose={() => setExportOpen(false)} onConfirm={handleExportConfirm} />
     </div>
   );
 }
@@ -551,7 +374,7 @@ function MiniStat({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
   );
 }
 
-// ─── Mini case list (shared by pipeline/branch/KPI expansions) ───────────
+// ─── Mini case list (shared by pipeline/branch expansions) ───────────────
 
 export function MiniCaseList({ cases }: { cases: CeoCohortCase[] }) {
   const shown = cases.slice(0, 8);
