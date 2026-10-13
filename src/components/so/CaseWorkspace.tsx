@@ -73,12 +73,18 @@ export function CaseWorkspace({
   const canWithdraw = ["draft", "pending_evaluation", "pending_customer_decision"].includes(
     initialCase.status
   );
-  // The latest negotiation round (if any) is the current effective price --
-  // the original case_offers.offer_price is frozen once submitted and never
-  // reflects a later "Nippon Revised" round.
-  const currentOfferPrice = negotiations.length
-    ? negotiations[negotiations.length - 1].amount
-    : offer?.offer_price ?? 0;
+  // Nippon's offer and the customer's counter are two separate tracks, not
+  // one merged "current offer" -- only Nippon's side is ever an acceptable/
+  // accepted price (matches record_customer_decision(), which only ever
+  // reads the latest nippon_revised round -- never a customer_counter --
+  // for final_price).
+  const latestNipponRevision = [...negotiations].reverse().find((n) => n.direction === "nippon_revised");
+  const latestCustomerCounter = [...negotiations].reverse().find((n) => n.direction === "customer_counter");
+  const nipponOfferPrice = latestNipponRevision?.amount ?? offer?.offer_price ?? 0;
+  const customerCounterPrice = latestCustomerCounter?.amount ?? null;
+  const customerCounterPending =
+    customerCounterPrice !== null &&
+    (!latestNipponRevision || (latestCustomerCounter?.round ?? 0) > (latestNipponRevision?.round ?? 0));
 
   const [fields, setFields] = useState({
     customer_name: initialCase.customer_name ?? "",
@@ -710,15 +716,27 @@ export function CaseWorkspace({
 
       {initialCase.status === "pending_customer_decision" && offer && (
         <Card>
-          <CardTitle>{negotiations.length ? "Current Offer" : "Nippon's Offer"}</CardTitle>
-          <div className="mb-4">
-            <p className="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-              {formatINR(currentOfferPrice)}
-            </p>
-            {negotiations.length > 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Original offer was {formatINR(offer.offer_price)}.
+          <CardTitle>Offer &amp; Counter</CardTitle>
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-zinc-400">Nippon&apos;s Offer</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                {formatINR(nipponOfferPrice)}
               </p>
+              {latestNipponRevision && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Original offer was {formatINR(offer.offer_price)}.</p>
+              )}
+            </div>
+            {customerCounterPrice !== null && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-600 dark:text-amber-400">Customer&apos;s Counter</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                  {formatINR(customerCounterPrice)}
+                </p>
+                {customerCounterPending && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Awaiting Nippon&apos;s response.</p>
+                )}
+              </div>
             )}
           </div>
 

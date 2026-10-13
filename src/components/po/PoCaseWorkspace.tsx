@@ -182,12 +182,20 @@ export function PoCaseWorkspace({
 
   // ── Negotiation state ─────────────────────────────────────────────────────
   const [negotiations, setNegotiations] = useState<NegotiationRow[]>(initialNegotiations);
-  // The latest negotiation round (if any) is the current effective price --
-  // the original case_offers.offer_price is frozen the moment it's submitted
-  // and never reflects a "Nippon Revised" round after that.
-  const currentOfferPrice = negotiations.length
-    ? negotiations[negotiations.length - 1].amount
-    : offer?.offer_price ?? 0;
+  // Nippon's offer and the customer's counter are two separate tracks, not
+  // one merged "current offer" -- the last round recorded could belong to
+  // either side, and only Nippon's side is ever an acceptable/accepted
+  // price (matches record_customer_decision(), which only ever reads the
+  // latest nippon_revised round -- never a customer_counter -- for final_price).
+  const latestNipponRevision = [...negotiations].reverse().find((n) => n.direction === "nippon_revised");
+  const latestCustomerCounter = [...negotiations].reverse().find((n) => n.direction === "customer_counter");
+  const nipponOfferPrice = latestNipponRevision?.amount ?? offer?.offer_price ?? 0;
+  const customerCounterPrice = latestCustomerCounter?.amount ?? null;
+  // Only meaningful when the customer's latest counter hasn't been matched
+  // by a more recent Nippon revision -- i.e. it's still awaiting a response.
+  const customerCounterPending =
+    customerCounterPrice !== null &&
+    (!latestNipponRevision || (latestCustomerCounter?.round ?? 0) > (latestNipponRevision?.round ?? 0));
   const [negDirection, setNegDirection] = useState<"customer_counter" | "nippon_revised">("customer_counter");
   const [negAmount, setNegAmount] = useState("");
   const [negNote, setNegNote] = useState("");
@@ -606,15 +614,28 @@ export function PoCaseWorkspace({
 
           {/* Offer Price */}
           <Card>
-            <CardTitle>{negotiations.length ? "Current Offer" : "Nippon's Offer"}</CardTitle>
-            <div className="mb-6">
-              <p className="text-3xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
-                {formatINR(currentOfferPrice)}
-              </p>
-              {negotiations.length > 0 && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Original offer was {formatINR(offer.offer_price)}. This will be recorded as the accepted price if the customer accepts.
+            <CardTitle>Offer &amp; Counter</CardTitle>
+            <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-zinc-400">Nippon&apos;s Offer</p>
+                <p className="mt-1 text-3xl font-black tabular-nums text-zinc-900 dark:text-zinc-50">
+                  {formatINR(nipponOfferPrice)}
                 </p>
+                {latestNipponRevision && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Original offer was {formatINR(offer.offer_price)}.</p>
+                )}
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Recorded as the accepted price if the customer accepts.</p>
+              </div>
+              {customerCounterPrice !== null && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-600 dark:text-amber-400">Customer&apos;s Counter</p>
+                  <p className="mt-1 text-3xl font-black tabular-nums text-amber-700 dark:text-amber-400">
+                    {formatINR(customerCounterPrice)}
+                  </p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {customerCounterPending ? "Awaiting Nippon's response -- not an accepted price on its own." : "Already followed by a later Nippon offer."}
+                  </p>
+                </div>
               )}
             </div>
 
