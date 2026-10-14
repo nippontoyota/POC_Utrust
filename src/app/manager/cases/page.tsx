@@ -93,8 +93,10 @@ export default async function ManagerCasesPage({
                   status={c.status as Enums<"case_status">}
                   rows={[
                     { label: "Branch", value: c.branch_name },
+                    { label: "Customer", value: c.customer_name ?? "—" },
                     { label: "Sales Officer", value: c.so_name ? `${c.so_name} (${c.so_employee_id})` : "—" },
                     { label: "PO", value: `${c.po_name} (${c.po_employee_id})` },
+                    { label: "Expected Price", value: formatINR(c.customer_expected_price) },
                     { label: "Offer Price", value: c.offer_price != null ? formatINR(c.offer_price) : "—" },
                   ]}
                 />
@@ -102,13 +104,15 @@ export default async function ManagerCasesPage({
             </div>
 
             <div className="hidden overflow-x-auto rounded-[1.35rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_20px_60px_rgb(33_25_20/0.07)] md:block">
-              <table className="w-full min-w-[800px] text-sm">
+              <table className="w-full min-w-[960px] text-sm">
                 <thead className="border-b border-[var(--line)] bg-[var(--panel-soft)] text-left text-xs font-black uppercase text-[var(--muted)]">
                   <tr>
                     <th className="whitespace-nowrap px-4 py-3">Vehicle</th>
                     <th className="whitespace-nowrap px-4 py-3">Branch</th>
+                    <th className="whitespace-nowrap px-4 py-3">Customer</th>
                     <th className="whitespace-nowrap px-4 py-3">Sales Officer</th>
                     <th className="whitespace-nowrap px-4 py-3">Purchase Officer</th>
+                    <th className="whitespace-nowrap px-4 py-3">Expected Price</th>
                     <th className="whitespace-nowrap px-4 py-3">Offer Price</th>
                     <th className="whitespace-nowrap px-4 py-3">Status</th>
                   </tr>
@@ -123,12 +127,14 @@ export default async function ManagerCasesPage({
                         </Link>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.branch_name}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{c.customer_name ?? "—"}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                         {c.so_name ? `${c.so_name} (${c.so_employee_id})` : "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                         {c.po_name} ({c.po_employee_id})
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">{formatINR(c.customer_expected_price)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-zinc-700 dark:text-zinc-300">
                         {c.offer_price != null ? formatINR(c.offer_price) : "—"}
                       </td>

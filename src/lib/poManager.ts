@@ -36,6 +36,8 @@ export type PoManagerCaseListItem = {
   so_name: string | null;
   so_employee_id: string | null;
   vehicle_reg_number: string | null;
+  customer_name: string | null;
+  customer_expected_price: number | null;
   make: string | null;
   model: string | null;
   variant: string | null;
@@ -59,6 +61,8 @@ export type PoManagerCaseDetail = {
   sales_officer_employee_id: string | null;
   po_name: string | null;
   po_employee_id: string | null;
+  customer_name: string | null;
+  customer_expected_price: number | null;
   vehicle_reg_number: string | null;
   make: string | null;
   model: string | null;

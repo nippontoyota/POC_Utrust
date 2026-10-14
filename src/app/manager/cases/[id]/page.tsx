@@ -65,8 +65,10 @@ export default async function ManagerCaseDetailPage({
         </Card>
 
         <Card>
-          <CardTitle>Vehicle Details</CardTitle>
+          <CardTitle>Customer &amp; Vehicle Details</CardTitle>
           <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <DetailRow label="Customer name" value={caseRow.customer_name} />
+            <DetailRow label="Customer expected price" value={formatINR(caseRow.customer_expected_price)} />
             <DetailRow label="Vehicle registration number" value={caseRow.vehicle_reg_number} />
             <DetailRow label="Make" value={caseRow.make} />
             <DetailRow label="Model" value={caseRow.model} />
