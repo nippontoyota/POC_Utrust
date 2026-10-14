@@ -27,11 +27,24 @@ export default async function ManagerCaseDetailPage({
     const caseRow = data as unknown as PoManagerCaseDetail | null;
     if (!caseRow) notFound();
 
-    const [{ data: photos }, { data: offer }, { data: events }] = await Promise.all([
+    const [{ data: photos }, { data: offer }, { data: events }, { data: negotiations }] = await Promise.all([
       supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
       supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
       supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
+      supabase.from("case_negotiations").select("*").eq("case_id", id).order("round"),
     ]);
+
+    // Nippon's offer and the customer's counter are two separate tracks --
+    // only Nippon's side is ever an acceptable/accepted price (matches
+    // record_customer_decision(), which only reads nippon_revised rounds).
+    const negs = negotiations ?? [];
+    const latestNipponRevision = [...negs].reverse().find((n) => n.direction === "nippon_revised");
+    const latestCustomerCounter = [...negs].reverse().find((n) => n.direction === "customer_counter");
+    const nipponOfferPrice = latestNipponRevision?.amount ?? offer?.offer_price ?? null;
+    const customerCounterPrice = latestCustomerCounter?.amount ?? null;
+    const customerCounterPending =
+      customerCounterPrice !== null &&
+      (!latestNipponRevision || (latestCustomerCounter?.round ?? 0) > (latestNipponRevision?.round ?? 0));
 
     return (
       <div className="space-y-6">
@@ -95,7 +108,14 @@ export default async function ManagerCaseDetailPage({
             <CardTitle>PO Evaluation</CardTitle>
             <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <DetailRow label="Physical inspection" value={offer.inspection_completed ? "Completed" : "Not completed"} />
-              <DetailRow label="Nippon's offer" value={formatINR(offer.offer_price)} />
+              <DetailRow label="Nippon's offer" value={formatINR(nipponOfferPrice)} />
+              {latestNipponRevision && <DetailRow label="Original offer" value={formatINR(offer.offer_price)} />}
+              {customerCounterPrice !== null && (
+                <DetailRow
+                  label="Customer's counter"
+                  value={`${formatINR(customerCounterPrice)}${customerCounterPending ? " (awaiting Nippon's response)" : ""}`}
+                />
+              )}
               <DetailRow label="Inspection notes" value={offer.inspection_notes ?? undefined} />
               <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
             </div>
