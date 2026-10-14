@@ -70,7 +70,7 @@ export function CaseWorkspace({
   const router = useRouter();
   const supabase = createClient();
   const isDraft = initialCase.status === "draft";
-  const canWithdraw = ["draft", "pending_evaluation", "pending_customer_decision"].includes(
+  const canWithdraw = ["draft", "pending_assignment", "pending_evaluation", "pending_customer_decision"].includes(
     initialCase.status
   );
   // Nippon's offer and the customer's counter are two separate tracks, not

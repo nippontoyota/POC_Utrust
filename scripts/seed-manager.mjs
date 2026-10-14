@@ -9,6 +9,7 @@
 //   node scripts/seed-manager.mjs broker_coordinator <employeeId> <fullName> <password>
 //   node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>
 //   node scripts/seed-manager.mjs ceo <employeeId> <fullName> <password>
+//   node scripts/seed-manager.mjs ptl <employeeId> <fullName> <branchCode[,branchCode...]> <password>
 //
 // Examples:
 //   node scripts/seed-manager.mjs sales_manager SM001 "Ravi Nair" CO01A salesmgr123
@@ -17,6 +18,7 @@
 //   node scripts/seed-manager.mjs broker_coordinator BC001 "Philip Mathew" brokercoord123
 //   node scripts/seed-manager.mjs admin ADM001 "Site Owner" adminpass123
 //   node scripts/seed-manager.mjs ceo CEO001 "Owner Name" ceopass123
+//   node scripts/seed-manager.mjs ptl PTL001 "Vipin M P" TI01A,TI01B,TI01C,IR01A ptlpass123
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -24,7 +26,7 @@ import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROLES = ["sales_manager", "cluster_manager", "po_manager", "broker_coordinator", "admin", "ceo"];
+const ROLES = ["sales_manager", "cluster_manager", "po_manager", "broker_coordinator", "admin", "ceo", "ptl"];
 const NO_SCOPE_ROLES = ["po_manager", "broker_coordinator", "admin", "ceo"];
 
 function loadEnvLocal() {
@@ -50,6 +52,7 @@ function usageError(message) {
   console.error("  node scripts/seed-manager.mjs broker_coordinator <employeeId> <fullName> <password>");
   console.error("  node scripts/seed-manager.mjs admin <employeeId> <fullName> <password>");
   console.error("  node scripts/seed-manager.mjs ceo <employeeId> <fullName> <password>");
+  console.error("  node scripts/seed-manager.mjs ptl <employeeId> <fullName> <branchCode[,branchCode...]> <password>");
   process.exit(1);
 }
 
@@ -73,7 +76,13 @@ if (!password) {
   usageError("Missing password.");
 }
 if (!NO_SCOPE_ROLES.includes(role) && !scopeArg) {
-  usageError(role === "cluster_manager" ? "Missing cluster name." : "Missing branch code.");
+  usageError(
+    role === "cluster_manager"
+      ? "Missing cluster name."
+      : role === "ptl"
+        ? "Missing branch code(s)."
+        : "Missing branch code."
+  );
 }
 
 const env = loadEnvLocal();
@@ -117,6 +126,29 @@ if (role === "sales_manager") {
   profileRow.cluster_id = cluster.id;
 }
 
+let ptlBranchIds = [];
+if (role === "ptl") {
+  const codes = [...new Set(scopeArg.split(",").map((c) => c.trim()).filter(Boolean))];
+  const { data: ptlBranches, error: ptlBranchError } = await supabase
+    .from("branches")
+    .select("id, code")
+    .in("code", codes);
+
+  if (ptlBranchError) {
+    console.error("Failed to look up branch codes:", ptlBranchError.message);
+    process.exit(1);
+  }
+
+  const found = new Set((ptlBranches ?? []).map((b) => b.code));
+  const missing = codes.filter((c) => !found.has(c));
+  if (missing.length > 0) {
+    console.error(`Branch code(s) not found: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+
+  ptlBranchIds = ptlBranches.map((b) => b.id);
+}
+
 const { data: created, error: createError } = await supabase.auth.admin.createUser({
   email: authEmail,
   password,
@@ -136,6 +168,17 @@ const { error: profileError } = await supabase.from("profiles").insert({
 if (profileError) {
   console.error("Failed to create profile row:", profileError.message);
   process.exit(1);
+}
+
+if (role === "ptl" && ptlBranchIds.length > 0) {
+  const { error: ptlBranchInsertError } = await supabase
+    .from("ptl_branches")
+    .insert(ptlBranchIds.map((branch_id) => ({ ptl_id: created.user.id, branch_id })));
+
+  if (ptlBranchInsertError) {
+    console.error("Failed to link PTL to branches:", ptlBranchInsertError.message);
+    process.exit(1);
+  }
 }
 
 console.log(`${role} account created: ${employeeId} / (password as given)${scopeArg ? `, scope: ${scopeArg}` : ""}`);

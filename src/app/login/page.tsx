@@ -23,6 +23,7 @@ const ROLE_HOME: Record<string, string> = {
   admin: "/admin/dashboard",
   broker_coordinator: "/coordinator/cases",
   ceo: "/ceo",
+  ptl: "/ptl/dashboard",
 };
 
 export default function LoginPage() {

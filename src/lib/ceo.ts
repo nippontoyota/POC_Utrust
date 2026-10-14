@@ -12,6 +12,7 @@ export type CeoKpis = {
 };
 
 export type CeoPipeline = {
+  pending_assignment: number;
   pending_evaluation: number;
   awaiting_customer_decision: number;
   nippon_purchase_pending: number;

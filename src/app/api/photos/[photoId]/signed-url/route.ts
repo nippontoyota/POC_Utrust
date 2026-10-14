@@ -56,6 +56,15 @@ export async function GET(
       if (branch?.cluster_id === profile.cluster_id) authorized = true;
     }
     if (profile.role === "broker_coordinator" && caseRow.broker_consent) authorized = true;
+    if (profile.role === "ptl") {
+      const { data: ptlBranch } = await service
+        .from("ptl_branches")
+        .select("branch_id")
+        .eq("ptl_id", user.id)
+        .eq("branch_id", caseRow.branch_id)
+        .maybeSingle();
+      if (ptlBranch) authorized = true;
+    }
   } else if (!profile && broker && broker.status === "approved" && !broker.suspended_at) {
     // Brokers only ever see plate-hidden photos on listed cases -- never the
     // reverse. This is the one place that rule is enforced, deliberately

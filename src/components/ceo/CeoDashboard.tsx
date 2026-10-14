@@ -28,6 +28,7 @@ import type { CeoOverview, CeoCohortCase } from "@/lib/ceo";
 import type { Enums } from "@/lib/supabase/database.types";
 
 const PIPELINE_STAGES: { key: keyof CeoOverview["pipeline"]; label: string; statuses: string[]; tone: "neutral" | "success" | "muted" }[] = [
+  { key: "pending_assignment", label: "Pending PTL assignment", statuses: ["pending_assignment"], tone: "neutral" },
   { key: "pending_evaluation", label: "Pending evaluation", statuses: ["pending_evaluation"], tone: "neutral" },
   { key: "awaiting_customer_decision", label: "Awaiting customer decision", statuses: ["pending_customer_decision"], tone: "neutral" },
   { key: "nippon_purchase_pending", label: "Nippon purchase pending", statuses: ["purchase_completion_pending"], tone: "neutral" },

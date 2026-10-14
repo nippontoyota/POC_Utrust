@@ -1,6 +1,7 @@
 import type { MarketplaceFunctions } from "@/lib/broker";
 import type { ManagerFunctions } from "@/lib/poManager";
 import type { CeoFunctions } from "@/lib/ceo";
+import type { PtlFunctions } from "@/lib/ptl";
 
 export type Json =
   | string
@@ -47,6 +48,39 @@ export type Database = {
             columns: ["cluster_id"]
             isOneToOne: false
             referencedRelation: "clusters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ptl_branches: {
+        Row: {
+          branch_id: string
+          created_at: string
+          ptl_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          ptl_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          ptl_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ptl_branches_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ptl_branches_ptl_id_fkey"
+            columns: ["ptl_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -592,7 +626,7 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
-    Functions: MarketplaceFunctions & ManagerFunctions & CeoFunctions & {
+    Functions: MarketplaceFunctions & ManagerFunctions & CeoFunctions & PtlFunctions & {
       current_profile_branch: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_cluster: { Args: Record<PropertyKey, never>; Returns: string }
       current_profile_role: {
@@ -700,9 +734,11 @@ export type Database = {
         | "admin"
         | "broker_coordinator"
         | "ceo"
+        | "ptl"
       broker_status: "pending" | "approved" | "rejected"
       case_status:
         | "draft"
+        | "pending_assignment"
         | "pending_evaluation"
         | "pending_customer_decision"
         | "purchase_completion_pending"
