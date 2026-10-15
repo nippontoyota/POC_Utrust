@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isOverdue } from "@/lib/businessDays";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { NotificationOptIn } from "@/components/ui/NotificationOptIn";
 
 export default async function PoDashboardPage() {
   const supabase = await createClient();
@@ -23,6 +24,7 @@ export default async function PoDashboardPage() {
         eyebrow="Purchase desk"
         title="Dashboard"
         description="Start evaluations, keep overdue work visible, and return offer prices to the sales team."
+        actions={<NotificationOptIn />}
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">

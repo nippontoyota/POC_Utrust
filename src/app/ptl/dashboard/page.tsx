@@ -5,6 +5,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { NotificationOptIn } from "@/components/ui/NotificationOptIn";
 import { formatINR } from "@/lib/formatCurrency";
 import { vehicleLabel, shortCaseRef } from "@/lib/caseRef";
 import type { PtlDashboard } from "@/lib/ptl";
@@ -31,6 +32,7 @@ export default async function PtlDashboardPage() {
         eyebrow="Assignment desk"
         title="Dashboard"
         description="Pick up newly submitted cases and hand each one to whichever PO in your branches is free."
+        actions={<NotificationOptIn />}
       />
 
       {error && (

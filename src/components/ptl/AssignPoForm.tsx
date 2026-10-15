@@ -36,6 +36,11 @@ export function AssignPoForm({
       setError(rpcError.message);
       return;
     }
+    fetch("/api/notifications/notify-po", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId }),
+    }).catch(() => {});
     router.refresh();
   }
 

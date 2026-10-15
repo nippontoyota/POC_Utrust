@@ -313,6 +313,12 @@ export function CaseWorkspace({
       return;
     }
 
+    fetch("/api/notifications/notify-ptl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId: initialCase.id }),
+    }).catch(() => {});
+
     router.refresh();
   }
 
