@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatINR } from "@/lib/formatCurrency";
+import { formatLabel } from "@/lib/formatLabel";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DetailRow } from "@/components/ui/DetailRow";
@@ -396,8 +397,8 @@ export function PoCaseWorkspace({
           <DetailRow label="Variant" value={caseRow.variant} />
           <DetailRow label="Colour" value={caseRow.color} />
           <DetailRow label="Year of manufacture" value={caseRow.registration_year?.toString()} />
-          <DetailRow label="Fuel type" value={caseRow.fuel_type} />
-          <DetailRow label="Transmission" value={caseRow.transmission} />
+          <DetailRow label="Fuel type" value={formatLabel(caseRow.fuel_type)} />
+          <DetailRow label="Transmission" value={formatLabel(caseRow.transmission)} />
           <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
           <DetailRow label="Ownership count" value={caseRow.ownership_count?.toString()} />
           <DetailRow
@@ -1073,8 +1074,8 @@ function BrokerPhotoCard({
 
       {/* Overlay info bar */}
       <div className="flex items-center justify-between gap-1 bg-white px-2 py-1.5 dark:bg-zinc-900">
-        <span className="truncate text-xs text-zinc-500 dark:text-zinc-400 capitalize">
-          {photo.category.replace(/_/g, " ")}
+        <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+          {formatLabel(photo.category)}
         </span>
 
         <div className="flex items-center gap-1 shrink-0">

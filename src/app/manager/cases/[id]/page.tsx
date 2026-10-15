@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/supabase/auth";
 import { formatINR } from "@/lib/formatCurrency";
+import { formatLabel } from "@/lib/formatLabel";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { DetailRow } from "@/components/ui/DetailRow";
@@ -87,8 +88,8 @@ export default async function ManagerCaseDetailPage({
             <DetailRow label="Model" value={caseRow.model} />
             <DetailRow label="Variant" value={caseRow.variant} />
             <DetailRow label="Year of manufacture" value={caseRow.registration_year?.toString()} />
-            <DetailRow label="Fuel type" value={caseRow.fuel_type} />
-            <DetailRow label="Transmission" value={caseRow.transmission} />
+            <DetailRow label="Fuel type" value={formatLabel(caseRow.fuel_type)} />
+            <DetailRow label="Transmission" value={formatLabel(caseRow.transmission)} />
             <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
             <DetailRow label="Ownership count" value={caseRow.ownership_count?.toString()} />
             <DetailRow
@@ -134,8 +135,8 @@ export default async function ManagerCaseDetailPage({
                 </div>
                 <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2 pb-1">
                   <div className="min-w-0 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    <p className="capitalize">{e.event_type.replace(/_/g, " ")}</p>
-                    {e.actor_role && <p className="text-xs capitalize text-zinc-500">{e.actor_role.replace(/_/g, " ")}</p>}
+                    <p>{formatLabel(e.event_type)}</p>
+                    {e.actor_role && <p className="text-xs text-zinc-500">{formatLabel(e.actor_role)}</p>}
                     {e.notes && <p className="break-words">{e.notes}</p>}
                   </div>
                   <time dateTime={e.created_at} className="whitespace-nowrap text-xs text-zinc-400 dark:text-zinc-500">
@@ -206,8 +207,8 @@ export default async function ManagerCaseDetailPage({
           <DetailRow label="Variant" value={caseRow.variant} />
           <DetailRow label="Colour" value={caseRow.color} />
           <DetailRow label="Year of manufacture" value={caseRow.registration_year?.toString()} />
-          <DetailRow label="Fuel type" value={caseRow.fuel_type} />
-          <DetailRow label="Transmission" value={caseRow.transmission} />
+          <DetailRow label="Fuel type" value={formatLabel(caseRow.fuel_type)} />
+          <DetailRow label="Transmission" value={formatLabel(caseRow.transmission)} />
           <DetailRow label="Odometer (km)" value={caseRow.odometer_km?.toString()} />
           <DetailRow label="Ownership count" value={caseRow.ownership_count?.toString()} />
           <DetailRow
@@ -294,10 +295,10 @@ export default async function ManagerCaseDetailPage({
                 </div>
                 <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2 pb-1">
                   <div className="min-w-0 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    <p className="capitalize">{e.event_type.replace(/_/g, " ")}</p>
-                    {e.actor_role && <p className="text-xs capitalize text-zinc-500">{e.actor_role.replace(/_/g, " ")}</p>}
+                    <p>{formatLabel(e.event_type)}</p>
+                    {e.actor_role && <p className="text-xs text-zinc-500">{formatLabel(e.actor_role)}</p>}
                     {typeof amount === "number" && <p>{formatINR(amount)}</p>}
-                    {typeof metadata.decision === "string" && <p className="capitalize">Customer: {metadata.decision}</p>}
+                    {typeof metadata.decision === "string" && <p>Customer: {formatLabel(metadata.decision)}</p>}
                     {typeof metadata.broker_consent === "boolean" && <p>Broker consent: {metadata.broker_consent ? "Yes" : "No"}</p>}
                     {e.notes && <p className="break-words">{e.notes}</p>}
                   </div>
