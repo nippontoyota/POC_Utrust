@@ -140,6 +140,8 @@ export function PanelBrokerBroadcastCard({
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   // Filter out RC book photos permanently
   const eligiblePhotos = photos.filter((p) => p.category !== "rc_book");
 
@@ -166,20 +168,12 @@ export function PanelBrokerBroadcastCard({
     photoCount: selectedPhotoIds.length,
   });
 
-  async function handleBroadcast() {
+  async function handleExecuteBroadcast() {
     if (selectedPhotoIds.length === 0) {
       setError("Please approve at least one plate-hidden photo before broadcasting.");
+      setConfirmOpen(false);
       return;
     }
-
-    const vehicleTitle = [vehicleDetails.registration_year, vehicleDetails.make, vehicleDetails.model]
-      .filter(Boolean)
-      .join(" ");
-
-    const confirmed = window.confirm(
-      `Broadcast ${vehicleTitle} to panel brokers via WhatsApp with ${selectedPhotoIds.length} approved photos?\n\nThis is a one-time broadcast.`
-    );
-    if (!confirmed) return;
 
     setBroadcasting(true);
     setError(null);
@@ -203,6 +197,7 @@ export function PanelBrokerBroadcastCard({
 
       setBroadcastAt(data.broadcastAt || new Date().toISOString());
       setFeedback(data.message || `Broadcast dispatched to ${data.sentCount} panel brokers.`);
+      setConfirmOpen(false);
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Broadcast failed");
@@ -315,6 +310,31 @@ export function PanelBrokerBroadcastCard({
           <p className="text-xs text-[var(--muted)]">
             Broadcasted on <strong className="text-zinc-800 dark:text-zinc-200" suppressHydrationWarning>{new Date(broadcastAt).toLocaleString("en-IN")}</strong>. This one-time broadcast is locked to prevent duplicate messaging.
           </p>
+        ) : confirmOpen ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5">
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+              Broadcast to panel brokers via WhatsApp with {selectedPhotoIds.length} approved photos?
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                disabled={broadcasting}
+                onClick={handleExecuteBroadcast}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2"
+              >
+                <Send className="size-3.5" />
+                {broadcasting ? "Broadcasting..." : "Yes, Broadcast Now"}
+              </Button>
+              <button
+                type="button"
+                disabled={broadcasting}
+                onClick={() => setConfirmOpen(false)}
+                className="rounded-lg border border-[var(--line)] bg-[var(--panel)] px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-[var(--panel-soft)] dark:text-zinc-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <p className="text-xs text-[var(--muted)]">
@@ -323,7 +343,14 @@ export function PanelBrokerBroadcastCard({
             <Button
               type="button"
               disabled={broadcasting || selectedPhotoIds.length === 0}
-              onClick={handleBroadcast}
+              onClick={() => {
+                if (selectedPhotoIds.length === 0) {
+                  setError("Please approve at least one plate-hidden photo before broadcasting.");
+                  return;
+                }
+                setError(null);
+                setConfirmOpen(true);
+              }}
               className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5"
             >
               <Send className="size-4" />
