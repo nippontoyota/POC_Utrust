@@ -6,6 +6,7 @@ import { sendDoubleTickTextMessage, claimBrokerChatForAgent } from "@/lib/double
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
+    console.log("DoubleTick Webhook received:", JSON.stringify(body));
 
     // Ignore delivery status events (SENT, DELIVERED, READ) to prevent echo loops
     const eventType = String(body.event || body.type || "").toUpperCase();
@@ -19,28 +20,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ignored: `Delivery event ${eventType}` });
     }
 
-    // Support DoubleTick Bot Studio, Webhook payload, and direct message formats
+    // Extract sender phone from DoubleTick payload (supports sender.phone, chatId, customer.phone, etc.)
     const rawFrom =
+      body.payload?.sender?.phone ||
+      body.payload?.sender?.mobile ||
+      body.payload?.chatId ||
       body.payload?.customer?.phone ||
       body.payload?.customer?.mobile ||
+      body.sender?.phone ||
       body.customer?.phone ||
       body.from ||
       body.sender ||
       body.data?.from ||
       body.data?.sender ||
       body.message?.from ||
+      (typeof body.payload?.sender === "string" ? body.payload.sender : "") ||
       "";
 
-    const rawText =
-      body.payload?.message?.text ||
-      body.payload?.text ||
-      body.text ||
-      body.message?.text ||
-      body.data?.text ||
-      body.data?.message?.text ||
-      body.content?.text ||
-      (typeof body.message === "string" ? body.message : "") ||
-      "";
+    // Extract text from DoubleTick payload (handling string, { body: ... }, and nested text)
+    let rawText = "";
+    const msgObj = body.payload?.message;
+    if (typeof msgObj?.text === "string") {
+      rawText = msgObj.text;
+    } else if (msgObj?.text?.body && typeof msgObj.text.body === "string") {
+      rawText = msgObj.text.body;
+    } else if (typeof msgObj?.body === "string") {
+      rawText = msgObj.body;
+    } else if (typeof body.payload?.text === "string") {
+      rawText = body.payload.text;
+    } else if (body.payload?.text?.body && typeof body.payload.text.body === "string") {
+      rawText = body.payload.text.body;
+    } else if (typeof body.text === "string") {
+      rawText = body.text;
+    } else if (typeof body.message?.text === "string") {
+      rawText = body.message.text;
+    } else if (body.message?.text?.body && typeof body.message.text.body === "string") {
+      rawText = body.message.text.body;
+    } else if (typeof body.content?.text === "string") {
+      rawText = body.content.text;
+    } else if (typeof body.message === "string") {
+      rawText = body.message;
+    }
 
     const cleanMobile = String(rawFrom).replace(/\D/g, "").slice(-10);
 

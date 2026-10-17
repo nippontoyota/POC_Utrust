@@ -142,6 +142,45 @@ export async function claimBrokerChatForAgent(params: {
 }
 
 /**
+ * Ensures our webhook URL is registered in DoubleTick for incoming broker messages.
+ */
+export async function ensureDoubleTickWebhookRegistered(): Promise<void> {
+  const apiKey = process.env.DOUBLETICK_API_KEY;
+  if (!apiKey) return;
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://poc-utrust.vercel.app");
+
+  const webhookEndpoint = `${appUrl.replace(/\/$/, "")}/api/webhooks/doubletick`;
+
+  try {
+    const org = await getDoubleTickOrgContext(apiKey);
+    const wabaNumber = org?.wabaNumber || "919744712345";
+
+    await fetch("https://public.doubletick.io/v2/webhook/register", {
+      method: "POST",
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        name: "UTrust Panel Broker Webhook",
+        method: "POST",
+        url: webhookEndpoint,
+        wabaNumbers: [wabaNumber],
+        webhookEvents: ["MESSAGE_RECEIVED", "MESSAGE_STATUS_UPDATE"],
+      }),
+    });
+  } catch (err) {
+    console.warn("Could not register DoubleTick webhook:", err);
+  }
+}
+
+/**
  * Dispatches WhatsApp broadcasts via DoubleTick API using approved Meta template.
  * When DOUBLETICK_API_KEY is not configured, it operates in simulated mode.
  */
@@ -185,6 +224,9 @@ export async function sendDoubleTickWhatsAppBroadcast(
 
   // Live DoubleTick REST API dispatch using approved Meta template: utrust_tradein_alert
   try {
+    // Ensure DoubleTick webhook is registered to receive broker quotes
+    ensureDoubleTickWebhookRegistered().catch(() => {});
+
     // Pre-claim all broker chats so DoubleTick marks them as human-handled and suppresses the Welcome Bot
     await Promise.allSettled(
       validRecipients.map((r) =>
