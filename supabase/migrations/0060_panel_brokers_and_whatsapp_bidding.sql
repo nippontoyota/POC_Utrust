@@ -112,9 +112,10 @@ begin
 
   select * into v_branch from branches where id = v_case.branch_id;
 
-  -- Stamp broadcast timestamp and user
+  -- Stamp broadcast timestamp, status, and user
   update cases
-  set broker_broadcast_at = now(),
+  set status = 'listed_for_brokers',
+      broker_broadcast_at = now(),
       broker_broadcast_by = v_caller.id
   where id = p_case_id;
 

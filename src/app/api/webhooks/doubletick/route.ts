@@ -104,10 +104,12 @@ export async function POST(request: Request) {
         model,
         variant,
         registration_year,
-        broker_broadcast_at
+        broker_broadcast_at,
+        status
       `)
-      .in("status", ["listed_for_brokers", "broker_offer_selected"])
       .not("broker_broadcast_at", "is", null)
+      .neq("status", "broker_deal_closed")
+      .neq("status", "withdrawn")
       .order("broker_broadcast_at", { ascending: false })
       .limit(5);
 
