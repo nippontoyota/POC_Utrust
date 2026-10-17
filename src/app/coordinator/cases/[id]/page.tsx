@@ -11,6 +11,9 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StaffBrokerPanel } from "@/components/broker/StaffBrokerPanel";
 import { shortCaseRef } from "@/lib/caseRef";
 
+import { PanelBrokerBidsLeaderboard } from "@/components/ptl/PanelBrokerBidsLeaderboard";
+import type { PanelBrokerBid } from "@/lib/panelBrokers";
+
 export default async function CoordinatorCaseDetailPage({
   params,
 }: {
@@ -27,10 +30,11 @@ export default async function CoordinatorCaseDetailPage({
 
   if (!caseRow) notFound();
 
-  const [{ data: photos }, { data: offer }, { data: events }] = await Promise.all([
+  const [{ data: photos }, { data: offer }, { data: events }, { data: panelBids }] = await Promise.all([
     supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
     supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
+    supabase.rpc("get_panel_broker_bids", { p_case_id: id }),
   ]);
 
   return (
@@ -120,6 +124,13 @@ export default async function CoordinatorCaseDetailPage({
             {caseRow.withdrawn_reason && <DetailRow label="Withdrawal reason" value={caseRow.withdrawn_reason} />}
           </div>
         </Card>
+      )}
+      {["listed_for_brokers", "broker_offer_selected", "broker_deal_closed"].includes(caseRow.status) && (
+        <PanelBrokerBidsLeaderboard
+          caseId={id}
+          initialBids={(panelBids as unknown as PanelBrokerBid[]) ?? []}
+          status={caseRow.status}
+        />
       )}
 
       <StaffBrokerPanel caseId={id} status={caseRow.status} />

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { ThemeInitializer } from "@/components/ui/ThemeInitializer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,16 +35,7 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-const THEME_INIT_SCRIPT = `
-(function () {
-  try {
-    var stored = localStorage.getItem("theme");
-    document.documentElement.setAttribute("data-theme", stored === "dark" ? "dark" : "light");
-  } catch (e) {}
-})();
-`;
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"
@@ -51,10 +43,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-      </head>
       <body className="min-h-full flex flex-col font-sans">
+        <ThemeInitializer />
         {children}
         <ServiceWorkerRegister />
       </body>

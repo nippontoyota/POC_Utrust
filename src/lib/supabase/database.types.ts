@@ -120,6 +120,80 @@ export type Database = {
           },
         ]
       }
+      panel_brokers: {
+        Row: {
+          id: string
+          name: string
+          mobile: string
+          place: string
+          branch_code: string
+          is_active: boolean
+          is_test: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          mobile: string
+          place?: string
+          branch_code?: string
+          is_active?: boolean
+          is_test?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          mobile?: string
+          place?: string
+          branch_code?: string
+          is_active?: boolean
+          is_test?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      panel_broker_bids: {
+        Row: {
+          id: string
+          case_id: string
+          panel_broker_id: string | null
+          broker_name: string
+          broker_mobile: string
+          bid_amount: number
+          raw_message: string
+          received_at: string
+        }
+        Insert: {
+          id?: string
+          case_id: string
+          panel_broker_id?: string | null
+          broker_name: string
+          broker_mobile: string
+          bid_amount: number
+          raw_message?: string
+          received_at?: string
+        }
+        Update: {
+          id?: string
+          case_id?: string
+          panel_broker_id?: string | null
+          broker_name?: string
+          broker_mobile?: string
+          bid_amount?: number
+          raw_message?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_broker_bids_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clusters: {
         Row: {
           created_at: string
@@ -426,11 +500,15 @@ export type Database = {
           transmission: Database["public"]["Enums"]["transmission_type"] | null
           updated_at: string
           variant: string | null
+          broker_broadcast_at: string | null
+          broker_broadcast_by: string | null
           vehicle_reg_number: string | null
           withdrawn_at: string | null
           withdrawn_reason: string | null
         }
         Insert: {
+          broker_broadcast_at?: string | null
+          broker_broadcast_by?: string | null
           color?: string | null
           sales_officer_id: string
           assigned_po_id?: string | null
@@ -476,6 +554,8 @@ export type Database = {
           withdrawn_reason?: string | null
         }
         Update: {
+          broker_broadcast_at?: string | null
+          broker_broadcast_by?: string | null
           color?: string | null
           sales_officer_id?: string
           assigned_po_id?: string | null
@@ -757,6 +837,23 @@ export type Database = {
       set_photo_broker_visibility: {
         Args: { p_photo_id: string; p_visible: boolean }
         Returns: Database["public"]["Tables"]["case_photos"]["Row"]
+      }
+      ptl_broadcast_case_to_panel_brokers: {
+        Args: { p_case_id: string; p_photo_ids?: string[] | null }
+        Returns: Json
+      }
+      get_panel_broker_bids: {
+        Args: { p_case_id: string }
+        Returns: Json
+      }
+      record_panel_broker_bid: {
+        Args: {
+          p_case_id: string
+          p_mobile: string
+          p_bid_amount: number
+          p_raw_text?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

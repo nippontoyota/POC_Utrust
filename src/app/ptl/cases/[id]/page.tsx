@@ -12,7 +12,10 @@ import { StaffBrokerPanel } from "@/components/broker/StaffBrokerPanel";
 import { AssignPoForm } from "@/components/ptl/AssignPoForm";
 import type { Enums } from "@/lib/supabase/database.types";
 import type { PtlCaseDetail, PtlBranchPo } from "@/lib/ptl";
-import { shortCaseRef } from "@/lib/caseRef";
+import { shortCaseRef, vehicleLabel } from "@/lib/caseRef";
+import { PanelBrokerBroadcastCard } from "@/components/ptl/PanelBrokerBroadcastCard";
+import { PanelBrokerBidsLeaderboard } from "@/components/ptl/PanelBrokerBidsLeaderboard";
+import type { PanelBrokerBid } from "@/lib/panelBrokers";
 
 export default async function PtlCaseDetailPage({
   params,
@@ -27,13 +30,24 @@ export default async function PtlCaseDetailPage({
   if (!caseRow) notFound();
 
   const canAssign = caseRow.status === "pending_assignment" || caseRow.status === "pending_evaluation";
+  const isBrokerStage = ["listed_for_brokers", "broker_offer_selected", "broker_deal_closed"].includes(caseRow.status);
 
-  const [{ data: photos }, { data: offer }, { data: events }, { data: negotiations }, { data: branchPos }] = await Promise.all([
-    supabase.from("case_photos").select("id, category, file_size_bytes").eq("case_id", id).order("created_at"),
+  const [
+    { data: photos },
+    { data: offer },
+    { data: events },
+    { data: negotiations },
+    { data: branchPos },
+    { data: caseExtra },
+    { data: panelBids },
+  ] = await Promise.all([
+    supabase.from("case_photos").select("id, category, file_size_bytes, is_plate_visible, broker_visible").eq("case_id", id).order("created_at"),
     supabase.from("case_offers").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("case_events").select("*").eq("case_id", id).order("created_at"),
     supabase.from("case_negotiations").select("*").eq("case_id", id).order("round"),
     canAssign ? supabase.rpc("ptl_branch_pos", { p_branch_id: caseRow.branch_id }) : Promise.resolve({ data: null }),
+    supabase.from("cases").select("broker_broadcast_at, color, branches(code)").eq("id", id).maybeSingle(),
+    isBrokerStage ? supabase.rpc("get_panel_broker_bids", { p_case_id: id }) : Promise.resolve({ data: [] }),
   ]);
 
   const negs = negotiations ?? [];
@@ -126,6 +140,35 @@ export default async function PtlCaseDetailPage({
             <DetailRow label="Submitted at" value={new Date(offer.submitted_at).toLocaleString("en-IN")} />
           </div>
         </Card>
+      )}
+      {isBrokerStage && (
+        <>
+          <PanelBrokerBroadcastCard
+            caseId={id}
+            status={caseRow.status}
+            broadcastAt={caseExtra?.broker_broadcast_at ?? null}
+            branchName={caseRow.branch_name}
+            branchCode={caseExtra?.branches?.code || "CO01B"}
+            vehicleDetails={{
+              make: caseRow.make,
+              model: caseRow.model,
+              variant: caseRow.variant,
+              color: caseExtra?.color ?? null,
+              registration_year: caseRow.registration_year,
+              odometer_km: caseRow.odometer_km,
+              ownership_count: caseRow.ownership_count,
+              fuel_type: caseRow.fuel_type,
+              transmission: caseRow.transmission,
+              vehicle_reg_number: caseRow.vehicle_reg_number,
+            }}
+            photos={photos ?? []}
+          />
+          <PanelBrokerBidsLeaderboard
+            caseId={id}
+            initialBids={(panelBids as unknown as PanelBrokerBid[]) ?? []}
+            status={caseRow.status}
+          />
+        </>
       )}
 
       <StaffBrokerPanel caseId={id} status={caseRow.status as Enums<"case_status">} readOnly />

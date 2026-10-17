@@ -30,7 +30,7 @@ export default async function AdminUsersPage({
 
   let query = supabase
     .from("profiles")
-    .select("id, employee_id, full_name, role, is_active, branches(name), clusters(name)")
+    .select("id, employee_id, full_name, role, is_active, branches!profiles_branch_id_fkey(name), clusters(name)")
     .order("full_name");
 
   if (role) query = query.eq("role", role as Enums<"app_role">);

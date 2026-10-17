@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ClipboardList, Users, MapPin, UserCheck } from "lucide-react";
+import { ClipboardList, Users, MapPin, UserCheck, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -12,7 +13,15 @@ import type { PtlDashboard } from "@/lib/ptl";
 
 export default async function PtlDashboardPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("ptl_dashboard", {});
+  const service = createServiceClient();
+  const [{ data, error }, { count: brokerQueuePendingCount }] = await Promise.all([
+    supabase.rpc("ptl_dashboard", {}),
+    service
+      .from("cases")
+      .select("id", { count: "exact", head: true })
+      .or("status.in.(listed_for_brokers,broker_offer_selected),broker_consent.eq.true")
+      .is("broker_broadcast_at", null),
+  ]);
   const dashboard = data as unknown as PtlDashboard | null;
 
   const unassigned = dashboard?.unassigned ?? [];
@@ -48,6 +57,13 @@ export default async function PtlDashboardPage() {
           tone={unassigned.length > 0 ? "accent" : "default"}
           icon={ClipboardList}
           href="/ptl/cases?status=pending_assignment"
+        />
+        <StatCard
+          label="Broker Queue (Ready)"
+          value={brokerQueuePendingCount ?? 0}
+          tone={(brokerQueuePendingCount ?? 0) > 0 ? "accent" : "default"}
+          icon={Send}
+          href="/ptl/broker-queue?filter=pending"
         />
         <StatCard label="Branches covered" value={branches.length} icon={MapPin} />
         <StatCard label="Active POs tracked" value={workload.length} icon={Users} />

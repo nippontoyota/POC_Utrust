@@ -24,6 +24,7 @@ export default async function PtlLayout({
       links={[
         { href: "/ptl/dashboard", label: "Dashboard", icon: "dashboard" },
         { href: "/ptl/cases", label: "All Cases", icon: "cases" },
+        { href: "/ptl/broker-queue", label: "Broker Queue", icon: "marketplace" },
       ]}
     >
       {children}

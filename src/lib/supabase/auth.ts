@@ -22,7 +22,7 @@ export const getCurrentProfile = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("*, branches(name), clusters(name)")
+    .select("*, branches!profiles_branch_id_fkey(name), clusters(name)")
     .eq("id", user.id)
     .single();
 
