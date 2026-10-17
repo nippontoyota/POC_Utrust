@@ -34,6 +34,11 @@ function ownsStaffPath(role: string, pathname: string) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // API routes handle their own authentication (webhooks, bearer tokens, service clients)
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
@@ -66,8 +71,6 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
-
-  if (pathname.startsWith("/api")) return response;
 
   const isStaffPath = STAFF_PATHS.some((path) => pathname.startsWith(path));
 
