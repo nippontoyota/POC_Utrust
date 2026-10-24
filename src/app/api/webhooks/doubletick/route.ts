@@ -24,26 +24,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ignored: `Delivery event ${eventType}` });
     }
 
+    // Helper to safely extract phone string from various formats (string or object with phone/mobile)
+    const extractPhone = (val: unknown): string => {
+      if (!val) return "";
+      if (typeof val === "string" || typeof val === "number") return String(val);
+      if (typeof val === "object" && val !== null) {
+        const obj = val as Record<string, unknown>;
+        return String(obj.phone || obj.mobile || obj.phoneNumber || obj.from || "");
+      }
+      return "";
+    };
+
     // Extract sender phone from DoubleTick payload (supports sender.phone, chatId, customer.phone, etc.)
     const rawFrom =
-      body.payload?.sender?.phone ||
-      body.payload?.sender?.mobile ||
-      body.payload?.chatId ||
-      body.payload?.customer?.phone ||
-      body.payload?.customer?.mobile ||
-      body.sender?.phone ||
-      body.customer?.phone ||
-      body.from ||
-      body.sender ||
-      body.data?.from ||
-      body.data?.sender ||
-      body.message?.from ||
-      (typeof body.payload?.sender === "string" ? body.payload.sender : "") ||
+      extractPhone(body.payload?.sender) ||
+      extractPhone(body.payload?.customer) ||
+      extractPhone(body.data?.sender) ||
+      extractPhone(body.data?.customer) ||
+      extractPhone(body.sender) ||
+      extractPhone(body.customer) ||
+      extractPhone(body.from) ||
+      extractPhone(body.data?.from) ||
+      extractPhone(body.payload?.chatId) ||
+      extractPhone(body.message?.from) ||
       "";
 
     // Extract text from DoubleTick payload (handling string, { body: ... }, and nested text)
     let rawText = "";
-    const msgObj = body.payload?.message;
+    const msgObj = body.payload?.message || body.data?.message || body.message;
     if (typeof msgObj?.text === "string") {
       rawText = msgObj.text;
     } else if (msgObj?.text?.body && typeof msgObj.text.body === "string") {
@@ -54,6 +62,10 @@ export async function POST(request: Request) {
       rawText = body.payload.text;
     } else if (body.payload?.text?.body && typeof body.payload.text.body === "string") {
       rawText = body.payload.text.body;
+    } else if (typeof body.data?.text === "string") {
+      rawText = body.data.text;
+    } else if (body.data?.text?.body && typeof body.data.text.body === "string") {
+      rawText = body.data.text.body;
     } else if (typeof body.text === "string") {
       rawText = body.text;
     } else if (typeof body.message?.text === "string") {
