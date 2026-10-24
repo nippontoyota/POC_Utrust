@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { parseBrokerBidAmount } from "@/lib/panelBrokers";
-import { sendDoubleTickTextMessage, claimBrokerChatForAgent } from "@/lib/doubletick.server";
+import {
+  sendDoubleTickTextMessage,
+  claimBrokerChatForAgent,
+  ALLOWED_PANEL_BROKER_TEST_MOBILES,
+} from "@/lib/doubletick.server";
 
 export async function POST(request: Request) {
   try {
@@ -71,22 +75,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // STRICTEST HARD STOP: If the incoming message is NOT from one of our 3 test numbers,
+    // EXIT IMMEDIATELY. Do not query database, do not tag, do not assign, do not reply.
+    if (!ALLOWED_PANEL_BROKER_TEST_MOBILES.has(cleanMobile)) {
+      return NextResponse.json({ ok: true, status: "ignored_non_whitelisted_number" });
+    }
+
     if (!rawText.trim()) {
       return NextResponse.json({ ok: true, status: "ignored_empty_message" });
     }
 
     const service = createServiceClient();
 
-    // Verify sender is one of our panel brokers
+    // STRICT GUARD: Verify sender is an active registered panel broker in our database.
+    // If the sender is NOT a registered panel broker (e.g. regular Nippon Toyota retail customer),
+    // immediately exit. Do NOT tag, do NOT assign, and do NOT reply under any circumstance!
     const { data: broker } = await service
       .from("panel_brokers")
-      .select("id, name, mobile, place")
+      .select("id, name, mobile, place, is_active")
       .eq("mobile", cleanMobile)
+      .eq("is_active", true)
       .maybeSingle();
 
-    const brokerName = broker?.name || `Broker (${cleanMobile.slice(-4)})`;
+    if (!broker) {
+      console.log(`DoubleTick Webhook: Ignored incoming message from non-broker customer (${cleanMobile})`);
+      return NextResponse.json({ ok: true, status: "ignored_non_broker_customer" });
+    }
 
-    // Ensure broker contact is tagged and assigned to agent in DoubleTick to keep bot suppressed
+    const brokerName = broker.name;
+
+    // Ensure verified broker contact is tagged and assigned to agent in DoubleTick
     claimBrokerChatForAgent({
       brokerMobile: cleanMobile,
       brokerName,
@@ -147,23 +165,12 @@ export async function POST(request: Request) {
 
     const bidAmount = parseBrokerBidAmount(rawText);
 
-    // If the message does not contain a numeric bid, send a clean guidance reply
+    // If the message does not contain a numeric bid, do NOT send any prompt. Silently ignore.
     if (!bidAmount) {
-      console.log(`DoubleTick Webhook: Received non-bid text from ${cleanMobile}: "${rawText}"`);
-
-      const promptText = `Greetings from Nippon Toyota UTrust.
-
-To submit your purchase quote for the ${vehicleTitle}, please reply directly with your offer amount (e.g., 6,50,000 or 6.5L).`;
-
-      await sendDoubleTickTextMessage({
-        toMobile: cleanMobile,
-        messageText: promptText,
-      });
-
+      console.log(`DoubleTick Webhook: Ignored non-bid text from broker ${cleanMobile}: "${rawText}"`);
       return NextResponse.json({
         ok: true,
-        status: "prompted_for_bid_amount",
-        message: "Prompted broker for numeric quote.",
+        status: "ignored_non_numeric_text",
       });
     }
 

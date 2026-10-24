@@ -1,5 +1,18 @@
 import "server-only";
 
+/**
+ * STRICT TEST WHITELIST:
+ * Only these 3 verified test phone numbers are permitted to receive any WhatsApp communications
+ * from the UTrust broker bidding pipeline.
+ * Under no circumstance will the system dispatch broadcasts, replies, or tag customer contacts
+ * for any number outside this set.
+ */
+export const ALLOWED_PANEL_BROKER_TEST_MOBILES = new Set([
+  "9995228904", // Shiva
+  "8086186336", // Dev
+  "7591986822", // Bharath
+]);
+
 export type DoubleTickRecipient = {
   name: string;
   mobile: string;
@@ -101,6 +114,10 @@ export async function claimBrokerChatForAgent(params: {
 
   const cleanMobile = params.brokerMobile.trim().replace(/\D/g, "").slice(-10);
   if (!cleanMobile || cleanMobile.length !== 10) return;
+
+  // HARD GUARD: Never claim or tag regular customer chats in DoubleTick
+  if (!ALLOWED_PANEL_BROKER_TEST_MOBILES.has(cleanMobile)) return;
+
   const customerPhone = `91${cleanMobile}`;
 
   try {
@@ -142,45 +159,6 @@ export async function claimBrokerChatForAgent(params: {
 }
 
 /**
- * Ensures our webhook URL is registered in DoubleTick for incoming broker messages.
- */
-export async function ensureDoubleTickWebhookRegistered(): Promise<void> {
-  const apiKey = process.env.DOUBLETICK_API_KEY;
-  if (!apiKey) return;
-
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://poc-utrust.vercel.app");
-
-  const webhookEndpoint = `${appUrl.replace(/\/$/, "")}/api/webhooks/doubletick`;
-
-  try {
-    const org = await getDoubleTickOrgContext(apiKey);
-    const wabaNumber = org?.wabaNumber || "919744712345";
-
-    await fetch("https://public.doubletick.io/v2/webhook/register", {
-      method: "POST",
-      headers: {
-        Authorization: apiKey,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        name: "UTrust Panel Broker Webhook",
-        method: "POST",
-        url: webhookEndpoint,
-        wabaNumbers: [wabaNumber],
-        webhookEvents: ["MESSAGE_RECEIVED", "MESSAGE_STATUS_UPDATE"],
-      }),
-    });
-  } catch (err) {
-    console.warn("Could not register DoubleTick webhook:", err);
-  }
-}
-
-/**
  * Dispatches WhatsApp broadcasts via DoubleTick API using approved Meta template.
  * When DOUBLETICK_API_KEY is not configured, it operates in simulated mode.
  */
@@ -189,14 +167,17 @@ export async function sendDoubleTickWhatsAppBroadcast(
 ): Promise<DoubleTickBroadcastResult> {
   const apiKey = process.env.DOUBLETICK_API_KEY;
 
-  const validRecipients = payload.recipients.filter((r) => /^[6-9]\d{9}$/.test(r.mobile.trim()));
+  // STRICT FILTER: Only permit the 3 verified test mobile numbers
+  const validRecipients = payload.recipients
+    .filter((r) => /^[6-9]\d{9}$/.test(r.mobile.trim()))
+    .filter((r) => ALLOWED_PANEL_BROKER_TEST_MOBILES.has(r.mobile.trim().replace(/\D/g, "").slice(-10)));
 
   if (validRecipients.length === 0) {
     return {
       success: false,
       sentCount: 0,
       mode: apiKey ? "live" : "simulated",
-      message: "No valid 10-digit recipients found.",
+      message: "No valid whitelisted test recipients found.",
     };
   }
 
@@ -224,9 +205,6 @@ export async function sendDoubleTickWhatsAppBroadcast(
 
   // Live DoubleTick REST API dispatch using approved Meta template: utrust_tradein_alert
   try {
-    // Ensure DoubleTick webhook is registered to receive broker quotes
-    ensureDoubleTickWebhookRegistered().catch(() => {});
-
     // Pre-claim all broker chats so DoubleTick marks them as human-handled and suppresses the Welcome Bot
     await Promise.allSettled(
       validRecipients.map((r) =>
@@ -309,6 +287,12 @@ export async function sendDoubleTickTextMessage(params: {
 
   if (!cleanMobile || cleanMobile.length !== 10) {
     return { success: false, message: "Invalid 10-digit mobile number" };
+  }
+
+  // HARDCODE GUARD: Never send any text message to any number outside the 3 test brokers
+  if (!ALLOWED_PANEL_BROKER_TEST_MOBILES.has(cleanMobile)) {
+    console.warn(`[DOUBLETICK BLOCKED] Refused to send WhatsApp text to non-whitelisted number: ${cleanMobile}`);
+    return { success: false, message: "Blocked: number not in test whitelist" };
   }
 
   const formattedPhone = `91${cleanMobile}`;
