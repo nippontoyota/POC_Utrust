@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { parseBrokerBidAmount } from "@/lib/panelBrokers";
+import { parseBrokerBidAmount, evaluateBrokerBid } from "@/lib/panelBrokers";
 import {
   sendDoubleTickTextMessage,
   claimBrokerChatForAgent,
@@ -175,16 +175,45 @@ export async function POST(request: Request) {
         .filter(Boolean)
         .join(" ") || "Trade-in Vehicle";
 
-    const bidAmount = parseBrokerBidAmount(rawText);
+    const bidResult = evaluateBrokerBid(rawText);
 
-    // If the message does not contain a numeric bid, do NOT send any prompt. Silently ignore.
-    if (!bidAmount) {
-      console.log(`DoubleTick Webhook: Ignored non-bid text from broker ${cleanMobile}: "${rawText}"`);
+    // If broker entered a number below ₹10,000, send threshold guidance
+    if (bidResult.status === "too_low") {
+      const formattedAttempted = `₹${bidResult.amount.toLocaleString("en-IN")}`;
+      console.log(`DoubleTick Webhook: Broker ${cleanMobile} entered low bid: ${bidResult.amount}`);
+
+      const tooLowText = `The quote of ${formattedAttempted} is below the minimum vehicle purchase price threshold.\n\nPlease reply with a valid purchase quote of at least ₹10,000 (e.g., 65,000 or 3.5L) for the ${vehicleTitle}.`;
+
+      await sendDoubleTickTextMessage({
+        toMobile: cleanMobile,
+        messageText: tooLowText,
+      });
+
       return NextResponse.json({
         ok: true,
-        status: "ignored_non_numeric_text",
+        status: "bid_below_minimum_threshold",
+        attemptedAmount: bidResult.amount,
       });
     }
+
+    // If broker entered non-numeric words (e.g. "hehe", "hello"), send helpful quote guidance
+    if (bidResult.status === "not_numeric") {
+      console.log(`DoubleTick Webhook: Broker ${cleanMobile} entered non-numeric text: "${rawText}"`);
+
+      const guidanceText = `Greetings from Nippon Toyota UTrust.\n\nTo submit your purchase quote for the ${vehicleTitle}, please reply directly with your offer amount (e.g., 65,000 or 3.5L).`;
+
+      await sendDoubleTickTextMessage({
+        toMobile: cleanMobile,
+        messageText: guidanceText,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: "prompted_numeric_quote",
+      });
+    }
+
+    const bidAmount = bidResult.amount;
 
     // Check if broker previously submitted a bid for this case
     const { data: existingBid } = await service

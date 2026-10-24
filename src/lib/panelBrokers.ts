@@ -161,12 +161,17 @@ export function buildTemplatePlaceholders(
   ];
 }
 
+export type EvaluatedBrokerBid =
+  | { status: "valid"; amount: number }
+  | { status: "too_low"; amount: number }
+  | { status: "not_numeric" };
+
 /**
- * Parses a broker's reply into a clean numeric bid amount.
- * Handles formats: "650000", "6,50,000", "6.5L", "6.5 Lakh", "650k", etc.
+ * Evaluates a broker's reply to determine if it is a valid bid, below the minimum threshold, or non-numeric.
+ * Minimum threshold is ₹10,000.
  */
-export function parseBrokerBidAmount(text: string): number | null {
-  if (!text || typeof text !== "string") return null;
+export function evaluateBrokerBid(text: string): EvaluatedBrokerBid {
+  if (!text || typeof text !== "string") return { status: "not_numeric" };
   const cleaned = text.trim().toLowerCase();
 
   // Pattern for Lakhs: e.g. "6.5l", "6.5 lakh", "6.50 lakhs", "6l"
@@ -174,26 +179,20 @@ export function parseBrokerBidAmount(text: string): number | null {
   if (lakhMatch) {
     const num = parseFloat(lakhMatch[1]);
     if (!isNaN(num) && num > 0) {
-      return Math.round(num * 100000);
+      const amount = Math.round(num * 100000);
+      if (amount < 10000) return { status: "too_low", amount };
+      return { status: "valid", amount };
     }
   }
 
-  // Pattern for Thousands: e.g. "650k"
+  // Pattern for Thousands: e.g. "650k", "5k"
   const kMatch = cleaned.match(/(\d+(?:\.\d+)?)\s*k\b/);
   if (kMatch) {
     const num = parseFloat(kMatch[1]);
     if (!isNaN(num) && num > 0) {
-      return Math.round(num * 1000);
-    }
-  }
-
-  // Pattern for full number with optional commas, currency symbols, or trailing dashes: e.g. "₹6,50,000", "650000", "650000/-"
-  const numberMatch = cleaned.match(/(?:rs\.?|inr|₹)?\s*([0-9,]{4,10})(?:\s*\/-\b)?/);
-  if (numberMatch) {
-    const digitsOnly = numberMatch[1].replace(/,/g, "");
-    const amount = parseInt(digitsOnly, 10);
-    if (!isNaN(amount) && amount >= 10000 && amount <= 500000000) {
-      return amount;
+      const amount = Math.round(num * 1000);
+      if (amount < 10000) return { status: "too_low", amount };
+      return { status: "valid", amount };
     }
   }
 
@@ -201,10 +200,38 @@ export function parseBrokerBidAmount(text: string): number | null {
   const decimalMatch = cleaned.match(/(?:^|[^\d.])([0-9]{1,2}\.[0-9]{1,2})(?:$|[^\d.])/);
   if (decimalMatch) {
     const num = parseFloat(decimalMatch[1]);
-    if (!isNaN(num) && num >= 0.5 && num <= 99.99) {
-      return Math.round(num * 100000);
+    if (!isNaN(num) && num >= 0.01 && num <= 99.99) {
+      const amount = Math.round(num * 100000);
+      if (amount < 10000) return { status: "too_low", amount };
+      return { status: "valid", amount };
     }
   }
 
-  return null;
+  // Pattern for direct number with optional commas, currency symbols, or trailing dashes: e.g. "₹6,50,000", "650000", "6473", "500"
+  const numberMatch = cleaned.match(/(?:rs\.?|inr|₹)?\s*([0-9,]{1,12})(?:\s*\/-\b)?/);
+  if (numberMatch && numberMatch[1]) {
+    const digitsOnly = numberMatch[1].replace(/,/g, "");
+    if (digitsOnly.length > 0) {
+      const amount = parseInt(digitsOnly, 10);
+      if (!isNaN(amount) && amount > 0) {
+        if (amount < 10000) {
+          return { status: "too_low", amount };
+        }
+        if (amount <= 500000000) {
+          return { status: "valid", amount };
+        }
+      }
+    }
+  }
+
+  return { status: "not_numeric" };
+}
+
+/**
+ * Parses a broker's reply into a clean numeric bid amount.
+ * Handles formats: "650000", "6,50,000", "6.5L", "6.5 Lakh", "650k", etc.
+ */
+export function parseBrokerBidAmount(text: string): number | null {
+  const result = evaluateBrokerBid(text);
+  return result.status === "valid" ? result.amount : null;
 }
