@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * STRICT TEST WHITELIST:
- * Only these 2 verified test phone numbers are permitted to receive any WhatsApp communications
+ * Only these 3 verified test phone numbers are permitted to receive any WhatsApp communications
  * from the UTrust broker bidding pipeline.
  * Under no circumstance will the system dispatch broadcasts, replies, or tag customer contacts
  * for any number outside this set.
@@ -10,6 +10,7 @@ import "server-only";
 export const ALLOWED_PANEL_BROKER_TEST_MOBILES = new Set([
   "9995228904", // Shiva
   "8086186336", // Dev
+  "9847086015", // Nirmal (TL)
 ]);
 
 export type DoubleTickRecipient = {
